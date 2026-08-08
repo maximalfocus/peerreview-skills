@@ -37,7 +37,7 @@ fi
 
 # HOST owns git. Claude may co-edit and run the gate, but git-mutating tools are
 # denied and every prompt must restate no commit/push.
-DENY_GIT='Bash(git commit:*),Bash(git push:*),Bash(git reset:*),Bash(git revert:*),Bash(git checkout:*),Bash(git switch:*),Bash(git branch:*),Bash(git tag:*),Bash(git fetch:*),Bash(git pull:*),Bash(git merge:*),Bash(git rebase:*),Bash(git cherry-pick:*),Bash(git remote:*),Bash(git config:*)'
+DENY_GIT='Bash(git add:*),Bash(git am:*),Bash(git apply:*),Bash(git bisect:*),Bash(git branch:*),Bash(git checkout:*),Bash(git cherry-pick:*),Bash(git clean:*),Bash(git clone:*),Bash(git commit:*),Bash(git config:*),Bash(git fast-import:*),Bash(git fetch:*),Bash(git filter-branch:*),Bash(git gc:*),Bash(git init:*),Bash(git merge:*),Bash(git mv:*),Bash(git notes:*),Bash(git pull:*),Bash(git push:*),Bash(git rebase:*),Bash(git remote:*),Bash(git replace:*),Bash(git reset:*),Bash(git restore:*),Bash(git revert:*),Bash(git rm:*),Bash(git stash:*),Bash(git submodule:*),Bash(git switch:*),Bash(git symbolic-ref:*),Bash(git tag:*),Bash(git update-ref:*),Bash(git worktree:*)'
 claude_args=(claude -p)
 if [ "$round" != "1" ] && [ "$round" != "--fresh" ]; then claude_args+=(--continue); fi
 if [ "$round" = "--verdict" ]; then

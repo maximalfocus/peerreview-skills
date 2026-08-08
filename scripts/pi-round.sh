@@ -38,9 +38,10 @@ else
   if [ "$round" != "1" ] && [ "$round" != "--fresh" ]; then args+=(-c); fi
 fi
 
-# Pi intentionally has no permission popups or sandbox. Put a git guard first on
-# PATH so ordinary bash calls can inspect git but cannot mutate repository or
-# remote state. The prompt repeats the boundary; HOST still audits HEAD/status.
+# Pi intentionally has no permission popups or sandbox. Put a target-scoped git
+# guard first on PATH: the PEER may create temporary fixture repos while running
+# tests, but cannot mutate the reviewed repo or its remotes. The prompt repeats
+# the boundary; HOST still audits HEAD/status.
 guard_dir="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-git-guard.XXXXXX")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
@@ -48,24 +49,43 @@ cat > "$guard_dir/git" <<'GUARD'
 #!/usr/bin/env bash
 set -euo pipefail
 real_git="${PEERREVIEW_REAL_GIT:?}"
+protected_repo="${PEERREVIEW_PROTECTED_REPO:?}"
 args=("$@")
 cmd=""
+git_cwd="$PWD"
+explicit_git_dir=""
 i=0
 while [ "$i" -lt "${#args[@]}" ]; do
   arg="${args[$i]}"
   case "$arg" in
-    -C|--git-dir|--work-tree|--namespace|--config-env) i=$((i + 2)); continue ;;
-    --git-dir=*|--work-tree=*|--namespace=*|--config-env=*|-c=*) i=$((i + 1)); continue ;;
-    -c) i=$((i + 2)); continue ;;
+    -C)
+      path="${args[$((i + 1))]:-}"
+      case "$path" in /*) git_cwd="$path" ;; *) git_cwd="$git_cwd/$path" ;; esac
+      i=$((i + 2)); continue ;;
+    --git-dir)
+      explicit_git_dir="${args[$((i + 1))]:-}"
+      i=$((i + 2)); continue ;;
+    --git-dir=*) explicit_git_dir="${arg#--git-dir=}"; i=$((i + 1)); continue ;;
+    --work-tree|--namespace|--config-env|-c) i=$((i + 2)); continue ;;
+    --work-tree=*|--namespace=*|--config-env=*|-c=*) i=$((i + 1)); continue ;;
     --*) i=$((i + 1)); continue ;;
     -*) i=$((i + 1)); continue ;;
     *) cmd="$arg"; break ;;
   esac
 done
+resolved_cwd="$(cd "$git_cwd" 2>/dev/null && pwd -P || printf '%s' "$git_cwd")"
+protected=0
+case "$resolved_cwd" in "$protected_repo"|"$protected_repo"/*) protected=1 ;; esac
+if [ -n "$explicit_git_dir" ]; then
+  case "$explicit_git_dir" in /*) resolved_git_dir="$explicit_git_dir" ;; *) resolved_git_dir="$resolved_cwd/$explicit_git_dir" ;; esac
+  case "$resolved_git_dir" in "$protected_repo/.git"|"$protected_repo/.git"/*) protected=1 ;; esac
+fi
 case "$cmd" in
-  add|am|apply|bisect|branch|checkout|cherry-pick|clean|clone|commit|config|fetch|gc|init|merge|mv|notes|pull|push|rebase|remote|reset|restore|revert|rm|stash|submodule|switch|tag|worktree)
-    printf 'peerreview: PEER git mutation denied: git %s\n' "$cmd" >&2
-    exit 77
+  add|am|apply|bisect|branch|checkout|cherry-pick|clean|clone|commit|config|fast-import|fetch|filter-branch|gc|init|merge|mv|notes|pull|push|rebase|remote|replace|reset|restore|revert|rm|stash|submodule|switch|symbolic-ref|tag|update-ref|worktree)
+    if [ "$protected" -eq 1 ]; then
+      printf 'peerreview: PEER git mutation denied in reviewed repo: git %s\n' "$cmd" >&2
+      exit 77
+    fi
     ;;
 esac
 exec "$real_git" "$@"
@@ -74,7 +94,7 @@ chmod +x "$guard_dir/git"
 
 rc=0
 # shellcheck disable=SC2086
-PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" $TO_CMD pi "${args[@]}" < "$prompt_file" > "$out" || rc=$?
+PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" $TO_CMD pi "${args[@]}" < "$prompt_file" > "$out" || rc=$?
 if [ "$rc" -eq 124 ]; then
   printf 'peerreview: Pi round timed out after %ss (override: PI_ROUND_TIMEOUT, 0=disable).\n' "$timeout_s" >&2
 fi

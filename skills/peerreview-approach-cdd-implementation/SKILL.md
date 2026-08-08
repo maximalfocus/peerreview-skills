@@ -26,7 +26,7 @@ Per the original `/cdd-review` two-stage model:
 - **Stage 1 — Conformance compliance.** MUST pass before Stage 2. These are
   the lenses below.
 - **Stage 2 — Code quality.** Only after Stage 1 passes. The preferred Stage 2
-  surface is `/ultrareview` (cloud-parallel personas) — `/peerreview`'s Codex
+  surface is `/ultrareview` (cloud-parallel personas) — `/peerreview`'s PEER
   convergence loop handles correctness-and-security adversarially as part of
   the convergence contract, so the role-based persona checklist that
   `/cdd-review` carried inline is now redundant with the convergence loop's
@@ -35,7 +35,7 @@ Per the original `/cdd-review` two-stage model:
 This module declares Stage 1. Stage 2 is the convergence loop itself plus an
 optional `/ultrareview` recommendation in the final report.
 
-## Brief Codex with these lenses
+## Brief the PEER with these lenses
 
 ### Lens 1 — Suite passes, count matches (gate prerequisite)
 
@@ -467,9 +467,9 @@ impl-invented shortcut):
 These are not stubs (Lens 2/3) — the code is genuinely implemented — so they
 hide behind a green suite; they surface only by reading the PRD's *rule* and
 asking "which inputs satisfy this rule that the goldens didn't list?" The
-neutral Codex verdict loop is the engine that finds them (it drove 3 verdict
+neutral PEER verdict loop is the engine that finds them (it drove 3 verdict
 rounds / 5 such defects on urlshortener-go after a green round-1 edit pass);
-brief Codex to hunt sibling inputs, and re-derive the PRD-correct answer
+brief the PEER to hunt sibling inputs, and re-derive the PRD-correct answer
 yourself before accepting a fix.
 
 **Oracle-fidelity corollary — PRD *prose* can over-specify beyond what the
@@ -783,6 +783,6 @@ silently collapses duplicates). (semaphore-rust 2026-06-17: scanner byte-identic
 the lrucache lineage yet Codex found root-aliasing-not-fail-closed [High] + 3 runner
 malformed-golden gaps incl. duplicate-label-collapse [High] over 2 edit + 2 verdict;
 `src/lib.rs` correct + untouched throughout.) The non-progress abort is the
-key safety valve here — a stub-detection finding that Codex repeatedly
+key safety valve here — a stub-detection finding that the PEER repeatedly
 "fixes" by adding more hardcoded matches should abort the loop with a
 recommendation to route back to `/cdd-implement`.

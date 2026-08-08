@@ -14,10 +14,10 @@ The dominant defect class for these repos is **requirements↔plan drift**: a PR
 requirement that does not map to any PLAN category, OR a PLAN category that has
 no PRD anchor (scope drift). Internal consistency of PRD prose comes second.
 
-## Brief Codex with these lenses
+## Brief the PEER with these lenses
 
 When you reach Step 2 of `/peerreview` (working out the per-AC review strategy)
-and Step 4 (briefing Codex), use these lenses as the focus areas:
+and Step 4 (briefing the PEER), use these lenses as the focus areas:
 
 ### Lens 1 — Requirements ↔ Plan coverage closure (dominant defect class)
 
@@ -272,7 +272,7 @@ correctness is a **non-goal** of the PRD review — but the PLAN/PRD must not
 **contradict** them. Read the sibling repo's ADRs (when checked out at
 `../{project}-architecture/adr/`) and verify every PLAN/PRD claim that restates
 an ADR decision agrees with it. This is a cross-repo lens the gate's
-single-repo greps cannot see, and it is a live Codex-edit failure mode: a
+single-repo greps cannot see, and it is a live co-editor-edit failure mode: a
 co-editor "tightening" a PLAN risk-mitigation can silently invert an ADR
 decision (tinyrenderer-prd 2026-06-05: a Codex round changed the PNG-encoder
 mitigation to pin encoder *byte-equality*, contradicting ADR-0007's

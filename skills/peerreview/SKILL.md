@@ -554,9 +554,9 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    a casing fix). Verify renamed names against authoritative knowledge, not
    just that the diff is minimal and in-scope. **A PEER factual claim about a
    gate-derived quantity (test count, pass/fail, coverage) is UNVERIFIED when
-   the PEER could not run the gate** — the `workspace-write` sandbox blocks the
-   Docker socket and outbound network, so a containerized/network-fetching gate
-   does not run there and the PEER falls back to eyeballing (and miscounts).
+   the PEER could not run the gate** — its process/tool environment may lack
+   daemon, socket, or network access, so a containerized/network-fetching gate
+   can fall back to eyeballing (and miscounts).
    Settle any such number with the HOST's authoritative tooling (`cargo test --
    --list`, the real gate), and resolve a NOT-CONVERGED verdict premised solely
    on such a miscount by re-dispatching the verdict with that enumeration as

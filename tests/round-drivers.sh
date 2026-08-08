@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-driver-test.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/bin" "$tmp/repo"
+mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/scratch"
 git -C "$tmp/repo" init -q
 git -C "$tmp/repo" config user.email test@example.invalid
 git -C "$tmp/repo" config user.name Test
@@ -29,6 +29,13 @@ cat >/dev/null
 [ "${PI_FAKE_RC:-0}" = 0 ] || exit "$PI_FAKE_RC"
 if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
   if git commit --allow-empty -m peer-must-not-commit >/dev/null 2>&1; then exit 91; fi
+  if git update-ref refs/heads/peer-evil HEAD >/dev/null 2>&1; then exit 91; fi
+fi
+if [ -n "${PI_FAKE_GIT_SCRATCH:-}" ]; then
+  git -C "$PI_FAKE_GIT_SCRATCH" init -q
+  git -C "$PI_FAKE_GIT_SCRATCH" config user.email test@example.invalid
+  git -C "$PI_FAKE_GIT_SCRATCH" config user.name Test
+  git -C "$PI_FAKE_GIT_SCRATCH" commit --allow-empty -qm fixture
 fi
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI
@@ -69,8 +76,9 @@ if (unset PI_CODING_AGENT AI_AGENT PI_PROVIDER CLAUDECODE; "$root/scripts/select
 # Claude HOST -> Pi/OpenAI PEER: fresh, continuation, verdict, auth, output, git guard.
 export PI_FAKE_LOG="$tmp/pi.log"
 : > "$PI_FAKE_LOG"
-"$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1
+PI_FAKE_GIT_SCRATCH="$tmp/scratch" "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1
 contains "$tmp/pi.out" PI_OK
+[ -d "$tmp/scratch/.git" ] || fail "Pi guard blocked a temporary fixture repo"
 contains "$PI_FAKE_LOG" "--provider openai-codex"
 contains "$PI_FAKE_LOG" "--tools read,write,edit,bash,grep,find,ls"
 not_contains "$PI_FAKE_LOG" " -c "
@@ -87,6 +95,7 @@ not_contains "$PI_FAKE_LOG" "read,write"
 base_head="$(git -C "$tmp/repo" rev-parse HEAD)"
 PI_FAKE_GIT_MUTATE=1 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1
 [ "$(git -C "$tmp/repo" rev-parse HEAD)" = "$base_head" ] || fail "Pi peer changed HEAD"
+if git -C "$tmp/repo" show-ref --verify -q refs/heads/peer-evil; then fail "Pi peer created a branch ref"; fi
 
 if PI_FAKE_AUTH=api_key "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1 >/dev/null 2>&1; then fail "Pi API-key auth was accepted"; fi
 if PI_FAKE_RC=42 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1 >/dev/null 2>&1; then fail "failed Pi round was accepted"; fi
@@ -102,6 +111,7 @@ unset ANTHROPIC_BASE_URL ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_
 contains "$tmp/claude.out" CLAUDE_OK
 contains "$CLAUDE_FAKE_LOG" "--permission-mode acceptEdits"
 contains "$CLAUDE_FAKE_LOG" "Bash(git commit:*)"
+contains "$CLAUDE_FAKE_LOG" "Bash(git update-ref:*)"
 not_contains "$CLAUDE_FAKE_LOG" "--continue"
 
 : > "$CLAUDE_FAKE_LOG"
