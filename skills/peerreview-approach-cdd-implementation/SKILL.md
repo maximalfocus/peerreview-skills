@@ -558,7 +558,14 @@ A green score over an old range can exclude the exact fix it claims to prove; ke
 claims synchronized. (stateless-mcp SDK 2026-08-03: SDK dispatch and Dynamo cancellation fixes
 moved past both configured end lines while mutation stayed green.)
 
-Readiness probes must be non-mutating; prefer sentinel reads and deduplicate shared stores. IaC lifecycles need zero-service image bootstrap, failure-safe teardown after deploy/smoke errors, and post-delete inventory bound to captured physical IDs—not name substrings; pin platform-resource ordering to prevent collisions or resurrection.
+Readiness probes must be non-mutating; prefer sentinel reads and deduplicate shared stores.
+For staged IaC publication, validate the **actual saved plan** (never a committed fixture),
+ground state serial+lineage in a post-apply read, and bind the approved manifest bytes to
+provider-verified image/object/package receipts before registration—a boolean prerequisite map
+or receipt count is self-attestation. Poll live provider health; on first-deploy failure stop both
+services and record each rollback outcome. Teardown inventory stays bound to captured physical
+IDs—not name substrings; pin platform-resource ordering to prevent collisions or resurrection.
+(Reporting-Platform-CC-Sandbox 2026-08-08: 85/85 green masked all four lifecycle gaps.)
 
 ### Lens 11 — De-staled-port test-input fidelity (modernization-charter profile)
 
