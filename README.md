@@ -7,9 +7,9 @@ A cross-model co-editing **peer-review gate** for skill-generated repos.
 Skill workflows (cdd, system, tutorial, present, …) produce repos whose
 artifacts are "believed done" but never adversarially checked against the
 problem they were meant to solve. `/peerreview` closes that gap: the HOST acts
-as reviewer/manager and an independent CLI acts as PEER co-editor (Claude
-host → Codex peer; Codex host → Claude peer; OpenCode fallback), until
-a fresh active review charter is objectively satisfied and verification is green.
+as reviewer/manager and the fixed independent pair co-edits (Pi/OpenAI host →
+Claude Code peer; Claude Code host → Pi/OpenAI peer) until a fresh active review
+charter is objectively satisfied and verification is green.
 
 ## How it works
 
@@ -19,10 +19,13 @@ a fresh active review charter is objectively satisfied and verification is green
   without routine confirmation, but stops if durable intent is absent or conflicts.
 - `/peerreview` reads the active charter **adversarially**, works out a review plan
   and a *round forecast* (transparency only), then loops:
-  HOST reviews → PEER co-edits (`scripts/codex-round.sh` or
-  `scripts/claude-round.sh`, or fallback `scripts/opencode-round.sh`) → HOST
-  re-verifies the real diff and re-runs the
-  gate → commit the round.
+  HOST reviews → PEER co-edits (`scripts/pi-round.sh` or
+  `scripts/claude-round.sh`) → HOST re-verifies the real diff and re-runs the
+  gate → commit the round. Pi is pinned to `openai-codex` subscription OAuth;
+  Claude Code may use native Anthropic subscription auth or DeepSeek model config.
+- **Fail closed.** If either required side is missing, unauthenticated,
+  quota-blocked, or returns no report, the review stops—there is no third CLI or
+  same-HOST substitute.
 - **Convergence, not a round cap, is the stop condition.** Successful reviews
   create annotated `peerreview/converged/*` tag checkpoints. Later reviews use
   anchor→HEAD plus impact closure unless risk requires a full-tree pass.
@@ -40,12 +43,14 @@ peerreview-skills/
 ├── skills/peerreview-evolve/SKILL.md   ← the /peerreview-evolve methodology filter
 ├── skills/peerreview-approach-*/       ← per-artifact review-lens modules (Read-loaded)
 ├── templates/PROBLEM.md                ← the active review-charter schema
-├── scripts/codex-round.sh              ← one Codex co-edit round, non-interactive
-├── scripts/claude-round.sh             ← one Claude co-edit round, non-interactive
-├── scripts/opencode-round.sh           ← OpenCode fallback co-edit/verdict driver
+├── scripts/pi-round.sh                 ← Pi/OpenAI co-edit + verdict driver
+├── scripts/claude-round.sh             ← Claude Code co-edit + verdict driver
+├── scripts/peer-auth.sh                ← credential-safe fixed-pair preflight
+├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
 ├── scripts/charter-temp.sh             ← private active-charter lifecycle
 ├── scripts/review-anchor.sh            ← durable convergence-tag checkpoints
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
+├── tests/round-drivers.sh              ← fixed-pair driver smoke tests
 └── README.md
 ```
 
@@ -74,14 +79,17 @@ ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.claude/skills/pee
 ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.claude/skills/peerreview-evolve
 ```
 
-### Codex
+### Pi
+
+Authenticate Pi interactively with `/login` and select the OpenAI ChatGPT
+subscription, then symlink the same source skills:
 
 ```sh
-bash scripts/install-codex.sh
+ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.pi/agent/skills/peerreview
+ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.pi/agent/skills/peerreview-evolve
 ```
 
-Restart Codex after installation so it rebuilds the skill index. In Codex, ask
-for the skill by name or intent, for example `use peerreview to review this repo`.
+Restart Pi after installation so it rebuilds the skill index.
 
 ## Producer integration
 

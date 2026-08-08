@@ -713,27 +713,16 @@ statically per `/peerreview` Step 4's un-runnable gate rule. Set the harness's
 path env (e.g. `CONFORMANCE_PATH=../{project}-conformance/conformance`) before
 running the gate.)
 
-**Spawned-service gates and the Codex sandbox.** When the harness starts a real
-service to run — an in-process **embedded database** that binds a local port and
-forks a server process (e.g. `fergusstrange/embedded-postgres`), a testcontainer,
-a spawned broker — Codex's `workspace-write` sandbox typically **cannot start it**
-(no port bind / process spawn outside the workspace), so Codex falls back to a
-static review plus the package-level unit tests it *can* run. This is expected,
-not a Codex failure or a defect: brief Codex to say so and report which checks it
-ran, and the **reviewer runs the full gate from the host** (where the service
-starts cleanly) for the binding re-verification per Step 4.4. Do not treat
-Codex's inability to run the spawned-service gate as a blocker. orderflow-go
-(2026-05-23): embedded Postgres on a freePort; Codex hit a port conflict and
-fell back to `go test ./internal/...`, reviewer ran 105/105 + 100% coverage host-side.
-**Even an *external* DB on localhost does not help** — Codex's `workspace-write`
-sandbox blocks **all loopback TCP** (`dial tcp 127.0.0.1:PORT: operation not
-permitted`), so providing a `DATABASE_URL` to a host Postgres still fails inside
-the sandbox (orderflow-go re-review, 2026-05-23). Conclusion: for a DB-backed gate,
-the reviewer always runs the full suite host-side, and **Codex's independence must
-come from a neutral brief + reading all the code** (form its own findings, treat
-the green suite as a claim to disprove) — not from Codex executing the gate. This
-is enough: in that re-review Codex, unable to run a single test, still found six
-real defects purely by reading the handlers/validation against the PRD.
+**Spawned-service gates.** When the harness starts an embedded database,
+testcontainer, broker, or other real service, the PEER environment may lack the
+required process/network/daemon access. That is an environment limitation, not
+a clean gate or a code defect: the PEER reports the exact runnable subset and
+reconstructs the rest statically, while the HOST runs the full gate for binding
+re-verification per Step 4.4. Keep the independent pass neutral and make it read
+all affected code even when it cannot execute the service. orderflow-go
+(2026-05-23): a constrained peer could not bind embedded Postgres and ran only
+package tests; the HOST proved 105/105 + 100% coverage, while static independent
+review still found six real handler/validation defects against the PRD.
 
 ### Lens 16 — Framework presence is not framework binding
 

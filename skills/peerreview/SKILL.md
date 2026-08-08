@@ -1,8 +1,8 @@
 ---
 name: peerreview
-description: "Cross-model co-editing peer-review gate. The HOST reviews/manages; Claude and Codex peer-review each other, with OpenCode as the disclosed fallback, until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
+description: "Cross-model co-editing peer-review gate. Pi with an OpenAI subscription and Claude Code with Anthropic or DeepSeek peer-review each other until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
 disable-model-invocation: true
-allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(codex *) Bash(claude *) Bash(opencode *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
+allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(pi *) Bash(claude *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
 argument-hint: "[repo_path] [--dry-run]"
 ---
 
@@ -26,24 +26,21 @@ through it via `/peerreview-evolve`, never written to a log (there is none).
 ## Step 0.0 — Identify HOST and PEER
 
 The HOST running this skill reviews/orchestrates and owns git, verification,
-fact-checking, and convergence. Select the independent PEER by model family:
+fact-checking, and convergence. The pair is fixed by tool, not inferred from the
+HOST's selected model:
 
-| HOST family | Preferred PEER | Driver |
+| Execution HOST | Required PEER | Driver |
 |---|---|---|
-| Claude | Codex | `scripts/codex-round.sh` |
-| Codex | Claude | `scripts/claude-round.sh` |
+| Pi with selected provider `openai-codex` | Claude Code | `scripts/claude-round.sh` |
+| Claude Code (`CLAUDECODE`) | Pi with `openai-codex` subscription OAuth | `scripts/pi-round.sh` |
 
-Detect a Pi HOST first from its live bash metadata: `PI_PROVIDER` identifies
-the selected provider and `PI_MODEL` the model; `openai-codex`/GPT-Codex means
-Codex, while `anthropic` or a `claude*` model means Claude. Outside Pi,
-`CLAUDECODE` means Claude; otherwise use the system identity. Never classify a
-Pi Claude session as Codex merely because `CLAUDECODE` is unset. Ambiguous or
-unsupported HOST family → disclose it and use OpenCode as the PEER.
-
-If the preferred PEER is unavailable, use `scripts/opencode-round.sh` as the
-disclosed degraded fallback; only if OpenCode is also unavailable use the
-same-HOST native fallback. The body below may say “Codex”; read that as PEER.
-Codex-specific limit-cache and sandbox rules apply only when Codex is PEER.
+Resolve this mechanically with
+`~/personal/peerreview-skills/scripts/select-peer.sh` and use its exact
+HOST/PEER/DRIVER/AUTH_SIDE result. It checks Pi's process marker first and
+requires that HOST to have selected `PI_PROVIDER=openai-codex`; outside Pi it
+requires the Claude Code marker. Ambiguous/unsupported HOST or a Pi HOST on any
+other provider → stop. A third CLI, the standalone Codex CLI, and same-HOST
+review are not substitutes.
 
 ## Inputs
 
@@ -54,78 +51,21 @@ Codex-specific limit-cache and sandbox rules apply only when Codex is PEER.
 
 1. `repo_path` is a git repository. If not, stop and tell the user (offer
    `git init` only if they ask).
-2. The **PEER** CLI is present and authenticated, and not rate-limited. (HOST =
-   Claude → peer is `codex` [`codex login status`]; HOST = Codex → peer is
-  `claude` [`command -v claude`; the round itself surfaces any auth error].)
-  **For Codex peers only**, check the shared cross-session limit-state FIRST,
-  before probing the peer. *The shared limit cache below is Codex-peer-specific*
-  (a `codex` usage-limit shared across sibling Claude sessions). When the peer
-  is Claude (HOST = Codex), there is no shared cache yet: handle a Claude
-  usage-limit inline per the unavailable-peer fallback the first time a round
-  surfaces it (disclose + OpenCode fallback); do not consult
-  `codex-limit.sh`.
+2. Preflight **both fixed sides**; this validates CLI presence and auth without
+   printing credentials, regardless of which side is HOST:
 
    ```bash
-   scripts/codex-limit.sh status   # in peerreview-skills/scripts (also via $PEERREVIEW_SKILLS/scripts)
+   ~/personal/peerreview-skills/scripts/peer-auth.sh pi
+   ~/personal/peerreview-skills/scripts/peer-auth.sh claude
    ```
 
-   - **`LIMITED <iso> <mins>m` (exit 10):** another session already observed a
-     Codex usage-limit whose reset is still in the future. Do **not** re-probe
-     Codex and do **not** ask the user which path to take — go **straight to the
-     disclosed peer-unavailable fallback** (below), naming the shared reset time.
-     This is the whole point of the shared state: one session eats the limit
-     error; every other session auto-falls-back instead of re-waiting or
-     re-prompting (user durable directive, 2026-05-29).
-   - **`CLEAR` (exit 0):** proceed to probe `codex login status` + a cheap
-     `codex exec` probe as normal.
-
-   If `codex` is missing/unauthenticated, or any probe/round returns
-   `ERROR: ...usage limit`, the cross-vendor loop cannot run: **record the reset
-   into shared state** so sibling sessions inherit it, then run the fallback.
-
-   ```bash
-   # parse the "try again at <H:MM AM/PM>" from the Codex error, then:
-   scripts/codex-limit.sh set-at "14:31" "usage limit" "<repo> peerreview"
-   ```
-
-   Do **not** silently fall back to Claude-only edits, and do **not** stall the
-   gate for the (hours-long) reset. A successful Codex round should
-   `scripts/codex-limit.sh clear` (the limit lifted early).
-
-   **Transient mid-round disconnect ≠ usage limit (retry, don't fall back).** A round
-   that dies on a network/DNS/websocket error — `failed to lookup address information`,
-   `stream disconnected before completion`, reconnect-loop exhaustion — with NO
-   `usage limit` text is a transient connectivity blip, not a limit. The reset window is
-   seconds, not hours, and no verdict/`-o` file is written. Do **not** record a limit and
-   do **not** invoke the unavailable-peer fallback: re-probe the peer (`codex exec` cheap
-   probe inside the repo) and, when it answers, **retry the round fresh** (round `1`, new
-   session — a partially-streamed round has no resumable state). Only an actual
-   `ERROR: ...usage limit` triggers the shared-cache + fallback path above.
-   (2026-06-13 bitmask-architecture: round 1 died after ~124k tokens on a DNS blip; a
-   re-probe returned `PROBE_OK` and the retried fresh round completed and converged.)
-   **The signal is the missing `-o` file, NOT an error string.** An incomplete
-   round can exit with NO error text at all — a suspiciously fast exit and an
-   empty/absent `-o` last-message file (vs the multi-paragraph report a real
-   round writes). Gate round completion on `[ -s "$out" ]` (the `-o` file is
-   non-empty), never on elapsed time or `pgrep -f "codex exec"` (which also
-   matches your own poll-loop's command line). Empty `-o` + fast exit ⇒ same
-   transient class ⇒ re-probe + retry fresh, regardless of whether any error
-   printed. (2026-06-13 minheap-prd re-run: an 8s exit wrote 54 KB of streamed
-   file-reads to stdout but never an `-o` report and made no edits; gating on
-   `-o` presence + retry-fresh recovered it — the retried round found 3 real
-   second-order findings.)
-   **Sandbox-init failure ≠ usage limit ≠ unavailable peer (bypass bwrap, don't fall back).**
-   A round whose every command dies with `bwrap: No permissions to create a new namespace`
-   (kernels with unprivileged user namespaces disabled — common in containers) is an
-   ENVIRONMENT block on Codex's sandbox, not a usage limit, transient disconnect, or an
-   unavailable/​unauthenticated peer. Codex IS available; only its bwrap confinement can't
-   initialise. Do NOT record a limit and do NOT run the same-vendor fallback. When the
-   workspace is already a trusted container, re-run the peer without bwrap:
-   `CODEX_SANDBOX=danger-full-access scripts/codex-round.sh …` (the driver honors
-   `CODEX_SANDBOX`; default `workspace-write`). Probe it once with a cheap
-   `codex exec -s danger-full-access -C <repo> -o … -` before the real round. (2026-06-21
-   bitmask-typescript: the first round's commands all bwrap-failed; a `danger-full-access`
-   re-run converged in one cross-vendor edit round.)
+   Claude Code must report either native Anthropic subscription auth or a
+   DeepSeek model configuration. Pi must report `openai-codex` subscription
+   OAuth from Pi `/login`; API-key auth is not this contract. Missing CLI/auth,
+   usage limits, or a failed/empty round are terminal blockers: disclose the
+   exact failure, clean `ACTIVE_CHARTER` if created, and stop. Do not invoke a
+   third CLI or continue with a same-HOST review. A transient network failure
+   may be re-probed once and retried fresh only after preflight is green.
 3. Working tree + delivery branch: note uncommitted changes. When durable intent names a
    GitHub issue/PR, read its live state before any commit: review an OPEN PR on its head branch;
    a MERGED PR/CLOSED issue needs a follow-up branch (or a stop), never review commits on the
@@ -151,64 +91,14 @@ Codex-specific limit-cache and sandbox rules apply only when Codex is PEER.
 6. **Self-test the active charter's Verification gate before the loop:** from
    repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^`.
 
-## Peer-unavailable fallback (disclosed, degraded — never silent, never blocked)
+## Required-pair failure (fail closed)
 
-Claude↔Codex is preferred. If that PEER is missing, unauthenticated, or
-rate-limited, probe OpenCode (`command -v opencode`; a cheap `opencode run`
-round surfaces auth/model errors), disclose the substitution, and run the
-normal convergence loop through `scripts/opencode-round.sh`. OpenCode uses its
-configured model; therefore record **converged-via-OpenCode (degraded)** and
-state that the preferred Claude↔Codex pass is still owed. If OpenCode is also
-unavailable, run the HOST's native review to convergence: Claude `/code-review`
-or Codex directly against the loaded approach lenses. This tertiary path is
-**same-vendor and degraded**. The active charter remains mandatory.
-
-1. **Disclose, then auto-proceed — do not wait for the user's pick.** State it
-   plainly: "Preferred PEER unavailable ({reason}, reset {if known}); that pass
-   remains owed. Proceeding with OpenCode fallback." If OpenCode also fails,
-   disclose that failure and proceed with the HOST-native same-vendor fallback.
-   **Run the selected fallback immediately**. Surfacing options and
-   blocking on the user's decision is the anti-pattern this directive removes
-   (2026-05-29): while a shared limit is active, the fallback IS the default
-   action, announced not asked. (The user can still interrupt to say "just wait
-   for the peer" — but absence of an answer must never stall the gate.)
-2. **Use the right lenses.** Give OpenCode the same charter and loaded lenses as
-   the preferred PEER. On the tertiary HOST-native path, review implementation
-   repos adversarially against the diff/tree (`/code-review high` for Claude;
-   direct Codex review against the approach lenses). A freshly-built impl with everything already committed has an **empty
-   diff**, so point the finder angles at the whole `src/` tree AND drive the
-   `peerreview-approach-cdd-implementation` Stage-1 lenses (stub detection,
-   hardcoded-fixture, architecture-fitness, test-runner-trust/count-blindness,
-   suppressed-violation) — don't let the diff-scoped default silently review
-   nothing. (Later fix-round diffs review normally.) *Conformance / PRD /
-   charter repos* (golden files, little code to diff): diff-only code-review
-   finders don't fit — instead execute the matching `peerreview-approach-cdd-*`
-   module's lenses directly (the executable disk⇔doc closure, structural,
-   negative-coverage, enum-completeness, suite-invariant gates), the same lenses
-   you'd brief the PEER with. Either way, anchor on `ACTIVE_CHARTER`.
-3. **Loop to convergence.** OpenCode follows Steps 4–5, including an explicit
-   verdict (`opencode-round.sh … --verdict`). For HOST-native review, apply
-   confirmed Medium/High findings, commit, and re-run until no such findings or
-   3 rounds.
-4. **Record as degraded.** Push per Step 6. Report the actual fallback and that
-   the preferred PEER `/peerreview` pass is **still owed** when it returns. Never
-   write it up as preferred-pair CONVERGED. This is "good to proceed", not the
-   standard Claude↔Codex sign-off. **Edits applied natively in a
-   degraded round never had cross-vendor review** — so when the PEER returns and
-   the owed re-run runs, brief the mandatory round to *independently review that
-   native delta specifically* (the exact files/sections the fallback touched),
-   not just re-sweep the whole tree. That unreviewed delta is the highest-yield
-   surface of the re-run. (raytracer-prd 2026-05-31: a mid-loop rate-limit forced
-   4 fixes to be applied natively; the owed re-run's first PEER round, briefed
-   to scrutinize that delta hardest, found 4 fresh defects in it + the neutral
-   verdict loop then drove 9 more over 3 rounds before a true CONVERGED.)
-
-This is distinct from the **mandatory PEER round** (Step 4) and the
-**verdict-pending** rule (Step 5): those govern a loop that *did* run on the peer.
-This fallback is for when the preferred peer never became available to run. (Validated
-2026-05-29 cgrep-go: a native `/code-review` fallback surfaced 6 real fixes —
-a PRD path-normalization bug, dropped partial matches, a swallowed stdin error,
-an `OrderedMerge` panic, and two harness hardenings — not a rubber stamp.)
+Pi/OpenAI ↔ Claude Code is the only valid pair. If the PEER is missing,
+unauthenticated, quota-blocked, or returns no non-empty report/verdict, state the
+blocker and stop after charter cleanup. Never label a HOST-only pass converged,
+never substitute another CLI, and never push review edits made without the
+mandatory PEER round. Resume by re-running `/peerreview` after the named blocker
+is resolved.
 
 ## Path-scoped git policy (repos under `~/projects`)
 
@@ -254,7 +144,7 @@ prefer criteria that trace to the **Source of truth** and say so in the plan.
 Classify the repo by file markers and load the matching approach module(s) via
 Read. Approach modules supply artifact-type-specific review lenses, dominant
 defect classes, and verification-gate amendments — they shrink Step 2's
-generic prose and let Codex be briefed against the right defect classes.
+generic prose and let the PEER be briefed against the right defect classes.
 
 | Profile | Detection markers | Approach module |
 |---|---|---|
@@ -637,23 +527,14 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    AC or defect class. Restate: minimal edits, no commit/push, run and report the
    gate. The PEER may challenge traceability; the HOST revises the temp charter,
    never the repo, unless the durable source itself is defective.
-3. **PEER co-edits**: run the round-driver for the peer. **HOST = Claude →**
-   `~/personal/peerreview-skills/scripts/codex-round.sh <repo> <prompt> <out> <round>`
-   (`workspace-write`). **HOST = Codex →**
-   `~/personal/peerreview-skills/scripts/claude-round.sh <repo> <prompt> <out> <round>`.
-   **OpenCode fallback →** `~/personal/peerreview-skills/scripts/opencode-round.sh
-   <repo> <prompt> <out> <round>`. Every prompt restates no-commit/push.
-   **Pass the round number** — `1` on the first round so the
-   script starts a fresh session (there is none to resume); `2`+ resumes the
-   peer's prior session. Reference the script by that repo path — only
-   `SKILL.md` is symlinked into the skill dir, so a base-dir-relative
-   `scripts/...` path will not resolve. If the script is unreachable, fall back
-   to the equivalent inline: *Codex peer* round 1 →
-   `codex exec -s workspace-write -C <repo> -o <out> - < <prompt>`, round 2+ →
-   insert `resume --last` before the `-`; *Claude peer* round 1 →
-   `claude -p --permission-mode acceptEdits < <prompt> > <out>` run with cwd =
-   `<repo>`, round 2+ → add `--continue`; *OpenCode* → `opencode run --dir
-   <repo>` (round 2+ adds `--continue`). Capture its last message.
+3. **PEER co-edits**: run the fixed-pair driver. **Claude Code HOST →**
+   `~/personal/peerreview-skills/scripts/pi-round.sh <repo> <prompt> <out> <round>`.
+   **Pi HOST →** `~/personal/peerreview-skills/scripts/claude-round.sh <repo>
+   <prompt> <out> <round>`. Every prompt restates no-commit/push. Pass `1` for a
+   fresh first session and `2`+ to continue it. Reference the script by this
+   absolute repo path—only `SKILL.md` is symlinked into the skill directory. If
+   the required driver is unreachable or returns a failed/empty result, apply
+   **Required-pair failure**; do not improvise an inline or third-CLI path.
 4. **Re-verify independently**: read the real `git diff HEAD` AND `git status`
    (for new untracked files the PEER created — `git diff HEAD` only shows tracked
    changes; a new `Dockerfile` or generated file is invisible to it) — do not trust
@@ -792,8 +673,8 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    `u32` underflow panic on two-bullets-one-enemy. Settle the value against the
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
 5. **Commit the round**: `peerreview: round <N> — <one-line summary>`
-   (co-authored: HOST reviewer + PEER co-editor — name the actual two models,
-   e.g. Claude reviewer + Codex co-editor, or reversed). If a round makes things
+   (co-authored: HOST reviewer + PEER co-editor — name the actual two models
+   and tools, e.g. Claude Code reviewer + Pi/OpenAI co-editor, or reversed). If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
@@ -831,12 +712,10 @@ re-verified):
   (user durable directive, 2026-05-21). After the last edit-round, send
   the PEER a verdict-only prompt (no edits permitted) asking for either
   `CONVERGED — no substantive defects remain` or `NOT CONVERGED — round
-  N+1 needed, [defects listed]`. For Codex peer, use read-only resume:
-  `codex exec -s read-only -o <out> resume --last - < <verdict>` — exec
-  options MUST precede `resume`, else `-s after resume` errors. For Claude
-  peer, use the Claude round path with a no-edit verdict prompt; for OpenCode,
-  call `opencode-round.sh <repo> <verdict> <out> --verdict` (read-only `plan`
-  agent). In both cases verify the diff stays empty. The HOST no longer declares convergence
+  N+1 needed, [defects listed]`. Resume the fixed PEER read-only with
+  `pi-round.sh <repo> <verdict> <out> --verdict` or `claude-round.sh <repo>
+  <verdict> <out> --verdict`, matching Step 0.0. Verify the diff stays empty.
+  The HOST no longer declares convergence
   unilaterally — even a clean gate + reviewer-judged exhausted lenses is
   insufficient if the PEER still sees residuals. If the PEER returns NOT
   CONVERGED, dispatch round N+1 against its named defects and repeat
@@ -861,24 +740,21 @@ re-verified):
     review) is a yellow flag — re-prove convergence neutrally, do not rubber-stamp.
   - **A peer usage-limit error during the verdict prompt is a "verdict-pending"
     residual, NOT a silent CONVERGED (student-mgmt-conformance 2026-05-29).**
-    The ChatGPT `codex` CLI can return `ERROR: You've hit your usage limit. ... try
-    again at HH:MM AM` instead of rendering the verdict (the Claude peer surfaces
-    its own rate-limit error the same way); treat either identically. This is a transient
+    Pi/OpenAI or Claude Code can return a usage-limit error instead of rendering
+    the verdict; treat either identically. This is a transient
     external-system failure, not a NOT-CONVERGED outcome. **The convergence
     contract is NOT satisfied** (no explicit CONVERGED line). Do NOT fabricate
     a verdict, do NOT silently treat reviewer-side green as the verdict, and do
     NOT loop while waiting for the reset (the rate-limit window is hours, not
     seconds). Resolve by: (a) committing any reviewer-applied edits made before
     the verdict was dispatched, (b) pushing the working tree per Step 6, (c)
-    recording the verdict-pending state explicitly in the report and the run log
-    (cite the reset time the CLI returned), and (d) telling the user to re-run
+    recording the verdict-pending state explicitly in the report (cite the reset
+    time the CLI returned), and (d) telling the user to re-run
     `/peerreview` against the same repo after the reset — the loop will resume
     from the current committed state and complete the verdict. The
     Step 6 push is unconditional regardless; the absent CONVERGED line is the
     residual the user accepts when re-invoking, not silently inherited as
-    "converged". (If the user prefers not to wait for the reset, the
-    **peer-unavailable fallback** applies — OpenCode first, then a same-HOST
-    pass if needed; record it as degraded with the preferred verdict still owed.)
+    "converged". There is no alternate peer path while the required side is blocked.
 
 Anything not fixable without changing host state / running real
 infrastructure / external review is **not** a blocker — it is recorded as a
@@ -914,13 +790,13 @@ When Step 1.5 detected a `cdd-*` profile, **finish every terminal report by
 rendering the canonical CDD progress map** from
 `~/personal/cdd-skills/skills/cdd/SKILL.md` § Progress map. `/peerreview` owns
 this update because only it knows the terminal review outcome: explicit
-cross-vendor `CONVERGED` → `✓ reviewed`; fallback convergence → `⚠ degraded`;
-verdict-pending or non-progress abort → `☐ review owed`. Never advance the
+fixed-pair `CONVERGED` → `✓ reviewed`; required-pair failure, verdict-pending,
+or non-progress abort → `☐ review owed`. Never advance the
 project's `PLAN.md` lifecycle status merely because its repo review finished.
 
 Before the terminal report, always clean review-owned charter state with
 `bash ~/personal/peerreview-skills/scripts/charter-temp.sh clean "$ACTIVE_CHARTER"`
-(on convergence, fallback completion, non-progress abort, dry-run, or error).
+(on convergence, required-pair failure, non-progress abort, dry-run, or error).
 A pre-existing repo-root `PROBLEM.md` is not review-owned and is never removed.
 
 Then **always commit and push the reviewed repo** — every run, on
@@ -933,7 +809,7 @@ under the **Path-scoped git policy** (`~/projects`), do the opposite — do
 not commit or push; leave edits uncommitted/untracked and say so plainly.
 The absent push there is the expected outcome, not a failure to flag.
 
-After true cross-vendor convergence (not fallback/abort), run
+After true fixed-pair convergence (not abort), run
 `bash ~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental>`;
 push the returned tag exactly. It marks the reviewed commit; round commits retain
 detail. Under `~/projects`, create no tag.
@@ -961,9 +837,9 @@ git history of the skills is the record; never re-create a patterns/index log.
 ## Hard rules
 
 - The HOST owns git. The PEER co-editor never commits, pushes, or touches remotes.
-- Preferred pairing is HOST Claude → Codex peer; HOST Codex → Claude peer.
-  Unavailable preferred peer → disclosed OpenCode fallback; unavailable
-  OpenCode too → disclosed HOST-native same-vendor fallback (Step 0.0).
+- The only pairing is Pi/OpenAI ↔ Claude Code: Pi HOST → Claude Code PEER;
+  Claude Code HOST → Pi `openai-codex` subscription PEER. Any missing/auth/quota
+  blocker fails closed; no third CLI or same-HOST substitute (Step 0.0).
 - Every round: review the real diff + re-run the gate. Never trust self-reports
   — including fact-checking any identifier/API the PEER claims it "corrected".
 - **A PEER finding you DISMISS must be verified against the cited line, never
@@ -976,10 +852,9 @@ git history of the skills is the record; never re-create a patterns/index log.
   reclaimed=2" as a misread + out-of-scope; the direct mvcc-conformance review a
   day later confirmed both stale claims were really there — Codex was right, the
   dismissal was the error.)
-- Fail loud, don't degrade silently: auto-create a fresh active charter; absent
-  or conflicting durable intent → stop, never infer it from implementation. No
-  peer/auth/quota → disclose and use OpenCode, then HOST-native only if needed
-  (degraded; preferred peer owed).
+- Fail loud and closed: auto-create a fresh active charter; absent or conflicting
+  durable intent → stop, never infer it from implementation. Missing peer/auth,
+  quota, or empty output → disclose the blocker and stop after charter cleanup.
 - Rounds are forecast for transparency; **convergence**, not a count, ends
   it — but with a hard **floor of 1** peer round (Step 4 mandatory round;
   never converge at round 0).
