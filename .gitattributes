@@ -1,0 +1,14 @@
+# This repo is LF-only on every platform (it lives outside ~/projects).
+# `* text=auto eol=lf` normalizes all text to LF in the index AND working
+# tree, so no CRLF warnings regardless of the machine's core.autocrlf.
+* text=auto eol=lf
+
+# Binaries must never be touched.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary
+
+# Shell scripts: LF is load-bearing (a CRLF shebang breaks `env: bash\r`).
+*.sh text eol=lf
+scripts/* text eol=lf
