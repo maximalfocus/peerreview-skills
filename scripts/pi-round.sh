@@ -40,8 +40,10 @@ fi
 
 # Pi intentionally has no permission popups or sandbox. Put a target-scoped git
 # guard first on PATH: the PEER may create temporary fixture repos while running
-# tests, but ordinary git resolution cannot mutate the reviewed checkout's git
-# state. The prompt forbids all remote operations; HOST still audits HEAD/status.
+# tests, but flags/env that select where git writes (git-dir, work-tree, index,
+# config, object, common-dir, separate-git-dir) cannot target the reviewed
+# checkout's git state. Positional targets and direct file writes are out of
+# scope; the prompt forbids all remote operations; HOST still audits HEAD/status.
 guard_dir="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-git-guard.XXXXXX")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
@@ -57,6 +59,7 @@ git_cwd="$PWD"
 explicit_git_dir=""
 explicit_work_tree=""
 separate_git_dir=""
+config_file=""
 i=0
 while [ "$i" -lt "${#args[@]}" ]; do
   arg="${args[$i]}"
@@ -92,6 +95,21 @@ if [ "$cmd" = "init" ] || [ "$cmd" = "clone" ]; then
     i=$((i + 1))
   done
 fi
+# `git config --file/-f` selects the config file the command writes.
+if [ "$cmd" = "config" ]; then
+  i=$((cmd_index + 1))
+  while [ "$i" -lt "${#args[@]}" ]; do
+    arg="${args[$i]}"
+    case "$arg" in
+      --file|-f)
+        if [ -n "${args[$((i + 1))]:-}" ]; then config_file="${args[$((i + 1))]}"; fi
+        i=$((i + 2)); continue ;;
+      --file=*) config_file="${arg#--file=}"; i=$((i + 1)); continue ;;
+      -f*) config_file="${arg#-f}"; i=$((i + 1)); continue ;;
+    esac
+    i=$((i + 1))
+  done
+fi
 resolved_cwd="$(cd "$git_cwd" 2>/dev/null && pwd -P || printf '%s' "$git_cwd")"
 # Normalize existing paths and non-existing children through their physical
 # parent so relative, `..`, and symlink aliases match the protected checkout.
@@ -119,8 +137,14 @@ case "$resolved_cwd" in "$protected_repo"|"$protected_repo"/*) protected=1 ;; es
 [ -n "$explicit_git_dir" ] && protect_git_dir "$explicit_git_dir"
 [ -n "$explicit_work_tree" ] && protect_work_tree "$explicit_work_tree"
 [ -n "$separate_git_dir" ] && protect_git_dir "$separate_git_dir"
+[ -n "$config_file" ] && protect_git_dir "$config_file"
 [ -n "${GIT_DIR:-}" ] && protect_git_dir "$GIT_DIR"
 [ -n "${GIT_WORK_TREE:-}" ] && protect_work_tree "$GIT_WORK_TREE"
+[ -n "${GIT_COMMON_DIR:-}" ] && protect_git_dir "$GIT_COMMON_DIR"
+[ -n "${GIT_OBJECT_DIRECTORY:-}" ] && protect_git_dir "$GIT_OBJECT_DIRECTORY"
+[ -n "${GIT_INDEX_FILE:-}" ] && protect_git_dir "$GIT_INDEX_FILE"
+[ -n "${GIT_CONFIG_GLOBAL:-${GIT_CONFIG:-}}" ] && protect_git_dir "${GIT_CONFIG_GLOBAL:-$GIT_CONFIG}"
+[ -n "${GIT_CONFIG_SYSTEM:-}" ] && protect_git_dir "$GIT_CONFIG_SYSTEM"
 case "$cmd" in
   add|am|apply|bisect|branch|checkout|cherry-pick|clean|clone|commit|config|fast-import|fetch|filter-branch|gc|init|merge|mv|notes|pull|push|rebase|remote|replace|reset|restore|revert|rm|stash|submodule|switch|symbolic-ref|tag|update-ref|worktree)
     if [ "$protected" -eq 1 ]; then

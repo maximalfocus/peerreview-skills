@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-driver-test.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/scratch" "$tmp/scratch2"
+mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/scratch" "$tmp/scratch2" "$tmp/scratch3"
 git -C "$tmp/repo" init -q
 git -C "$tmp/repo" config user.email test@example.invalid
 git -C "$tmp/repo" config user.name Test
@@ -45,6 +45,15 @@ if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
   if git -C "$protected/../scratch" init --separate-git-dir "$protected/.git/peer-separate" "$protected/../scratch2" >/dev/null 2>&1; then exit 91; fi
   # clone also takes --separate-git-dir as a command option.
   if git -C "$protected/../scratch" clone --separate-git-dir "$protected/.git/peer-clone" "$protected" "$protected/../scratch2" >/dev/null 2>&1; then exit 91; fi
+  # Documented env/file selectors must not redirect writes into the reviewed
+  # repo's git state: global/system config files, config --file, the index,
+  # the object directory, and the shared common dir of a worktree layout.
+  if GIT_CONFIG_GLOBAL="$protected/.git/config" git -C "$protected/../scratch" config --global remote.origin.url https://evil.example/peer >/dev/null 2>&1; then exit 91; fi
+  if GIT_CONFIG_SYSTEM="$protected/.git/config" git -C "$protected/../scratch" config --system remote.origin.url https://evil.example/peer >/dev/null 2>&1; then exit 91; fi
+  if git -C "$protected/../scratch" config --file "$protected/.git/config" remote.origin.url https://evil.example/peer >/dev/null 2>&1; then exit 91; fi
+  if printf 'x\n' > "$protected/../scratch/probe.txt" && GIT_INDEX_FILE="$protected/.git/index" git -C "$protected/../scratch" add probe.txt >/dev/null 2>&1; then exit 91; fi
+  if GIT_OBJECT_DIRECTORY="$protected/.git/objects" git -C "$protected/../scratch" commit --allow-empty -m peer-object-evil >/dev/null 2>&1; then exit 91; fi
+  if mkdir -p "$protected/../scratch3/evilwt" && printf 'ref: refs/heads/master\n' > "$protected/../scratch3/evilwt/HEAD" && GIT_DIR="$protected/../scratch3/evilwt" GIT_COMMON_DIR="$protected/.git" GIT_WORK_TREE="$protected/../scratch" git -C "$protected/../scratch" commit --allow-empty -m peer-common-evil >/dev/null 2>&1; then exit 91; fi
 fi
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI
