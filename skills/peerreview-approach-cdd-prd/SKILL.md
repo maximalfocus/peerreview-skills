@@ -14,10 +14,10 @@ The dominant defect class for these repos is **requirements↔plan drift**: a PR
 requirement that does not map to any PLAN category, OR a PLAN category that has
 no PRD anchor (scope drift). Internal consistency of PRD prose comes second.
 
-## Brief Codex with these lenses
+## Brief the PEER with these lenses
 
 When you reach Step 2 of `/peerreview` (working out the per-AC review strategy)
-and Step 4 (briefing Codex), use these lenses as the focus areas:
+and Step 4 (briefing the PEER), use these lenses as the focus areas:
 
 ### Lens 1 — Requirements ↔ Plan coverage closure (dominant defect class)
 
@@ -272,7 +272,7 @@ correctness is a **non-goal** of the PRD review — but the PLAN/PRD must not
 **contradict** them. Read the sibling repo's ADRs (when checked out at
 `../{project}-architecture/adr/`) and verify every PLAN/PRD claim that restates
 an ADR decision agrees with it. This is a cross-repo lens the gate's
-single-repo greps cannot see, and it is a live Codex-edit failure mode: a
+single-repo greps cannot see, and it is a live co-editor-edit failure mode: a
 co-editor "tightening" a PLAN risk-mitigation can silently invert an ADR
 decision (tinyrenderer-prd 2026-06-05: a Codex round changed the PNG-encoder
 mitigation to pin encoder *byte-equality*, contradicting ADR-0007's
@@ -482,9 +482,9 @@ verdict 1 clean"; the re-run with Lens 7 driven hard drained an 11-rule totality
 family — zero-area triangle, zero-length normalize/light, degenerate lookat,
 zero projection divisor, non-positive dims, raster/AO/texture bounds, degenerate
 UV basis, malformed TGA — over 4 edit rounds + a Lens-6 ADR-0004 contradiction,
-before a true CONVERGED). Also budget wall-clock: a large math-PRD Codex round can
-exceed `codex-round.sh`'s 1800s default and return empty — kill stragglers and
-retry with `CODEX_ROUND_TIMEOUT` raised (raycaster-prd round 1).
+before a true CONVERGED). Also budget wall-clock: a large math-PRD PEER round can
+exceed the drivers' 1800s default and return empty — kill stragglers and retry
+with `PI_ROUND_TIMEOUT` or `CLAUDE_ROUND_TIMEOUT` raised (raycaster-prd round 1).
 
 **Re-runs after a topology-changing follow-up commit** (a new sibling repo,
 an artifact moved between repos, a stub/scaffold promoted) need an explicit

@@ -19,7 +19,7 @@ on disk. `/peerreview` Step 2 already calls this out as the "derived
 golden-file / test suites" sub-case — this approach module operationalizes it
 with CDD-specific structure.
 
-## Brief Codex with these lenses
+## Brief the PEER with these lenses
 
 ### Lens 1 — Disk ⇔ coverage doc bijection (executable closure gate)
 
@@ -93,7 +93,7 @@ self-serving artifact, not as an oracle:
   from scratch, recompute a few offsets/positions/segment-bases/assignments,
   byte-build a truncation fixture. A from-scratch re-derivation that matches is
   the only thing that turns `--check` green into fidelity evidence.
-- Brief Codex to do the same independently; agreement across two independent
+- Brief the PEER to do the same independently; agreement across two independent
   hand-derivations + the generator is the fidelity bar.
 - Audit the **generator logic** itself against the spec for the riskiest math
   (big-endian widths, length-prefix framing, `maxBytes` accounting, relative
@@ -345,7 +345,7 @@ If `suite-invariants.json` exists at repo root:
   or `suite-invariants.json` declares a literal format pattern for a fixture
   value (e.g., `^crk_[A-Z2-7]{32}$` for plaintext keys, JWT/HMAC shapes, ID
   prefixes, opaque token formats), programmatically validate every fixture
-  string in that role against the regex. Codex's adversarial pass on shape
+  string in that role against the regex. The PEER's adversarial pass on shape
   will not necessarily catch length/alphabet violations when the literal
   "looks right" — e.g., a 31-char base32 string passes a casual eyeball
   check but fails the 32-char contract. (Run 2026-05-21 crudapi-conformance:

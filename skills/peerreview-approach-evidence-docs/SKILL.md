@@ -26,7 +26,9 @@ ground-truth-sourced, zero false positives).
 The round prompt MUST name the external ground-truth repo paths and instruct
 the PEER to open cited files itself. A peer briefed only on the repo dir
 reviews internal consistency and misses the dominant defect class entirely.
-(Codex `-s read-only` can read outside `-C`; this is what makes the pass work.)
+(The PEER can read cited files outside the repo dir — Pi's read tool is
+unrestricted and Claude Code gets external dirs via `CLAUDE_ADD_DIRS`; this is
+what makes the pass work.)
 On co-edit rounds, the HOST's diff re-verification must re-check every edited
 claim against the cited external file — an edit that "fixes" a finding by
 rewording without re-reading the source is the self-serving failure mode here.

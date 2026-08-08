@@ -26,7 +26,7 @@ Per the original `/cdd-review` two-stage model:
 - **Stage 1 — Conformance compliance.** MUST pass before Stage 2. These are
   the lenses below.
 - **Stage 2 — Code quality.** Only after Stage 1 passes. The preferred Stage 2
-  surface is `/ultrareview` (cloud-parallel personas) — `/peerreview`'s Codex
+  surface is `/ultrareview` (cloud-parallel personas) — `/peerreview`'s PEER
   convergence loop handles correctness-and-security adversarially as part of
   the convergence contract, so the role-based persona checklist that
   `/cdd-review` carried inline is now redundant with the convergence loop's
@@ -35,7 +35,7 @@ Per the original `/cdd-review` two-stage model:
 This module declares Stage 1. Stage 2 is the convergence loop itself plus an
 optional `/ultrareview` recommendation in the final report.
 
-## Brief Codex with these lenses
+## Brief the PEER with these lenses
 
 ### Lens 1 — Suite passes, count matches (gate prerequisite)
 
@@ -467,9 +467,9 @@ impl-invented shortcut):
 These are not stubs (Lens 2/3) — the code is genuinely implemented — so they
 hide behind a green suite; they surface only by reading the PRD's *rule* and
 asking "which inputs satisfy this rule that the goldens didn't list?" The
-neutral Codex verdict loop is the engine that finds them (it drove 3 verdict
+neutral PEER verdict loop is the engine that finds them (it drove 3 verdict
 rounds / 5 such defects on urlshortener-go after a green round-1 edit pass);
-brief Codex to hunt sibling inputs, and re-derive the PRD-correct answer
+brief the PEER to hunt sibling inputs, and re-derive the PRD-correct answer
 yourself before accepting a fix.
 
 **Oracle-fidelity corollary — PRD *prose* can over-specify beyond what the
@@ -713,27 +713,16 @@ statically per `/peerreview` Step 4's un-runnable gate rule. Set the harness's
 path env (e.g. `CONFORMANCE_PATH=../{project}-conformance/conformance`) before
 running the gate.)
 
-**Spawned-service gates and the Codex sandbox.** When the harness starts a real
-service to run — an in-process **embedded database** that binds a local port and
-forks a server process (e.g. `fergusstrange/embedded-postgres`), a testcontainer,
-a spawned broker — Codex's `workspace-write` sandbox typically **cannot start it**
-(no port bind / process spawn outside the workspace), so Codex falls back to a
-static review plus the package-level unit tests it *can* run. This is expected,
-not a Codex failure or a defect: brief Codex to say so and report which checks it
-ran, and the **reviewer runs the full gate from the host** (where the service
-starts cleanly) for the binding re-verification per Step 4.4. Do not treat
-Codex's inability to run the spawned-service gate as a blocker. orderflow-go
-(2026-05-23): embedded Postgres on a freePort; Codex hit a port conflict and
-fell back to `go test ./internal/...`, reviewer ran 105/105 + 100% coverage host-side.
-**Even an *external* DB on localhost does not help** — Codex's `workspace-write`
-sandbox blocks **all loopback TCP** (`dial tcp 127.0.0.1:PORT: operation not
-permitted`), so providing a `DATABASE_URL` to a host Postgres still fails inside
-the sandbox (orderflow-go re-review, 2026-05-23). Conclusion: for a DB-backed gate,
-the reviewer always runs the full suite host-side, and **Codex's independence must
-come from a neutral brief + reading all the code** (form its own findings, treat
-the green suite as a claim to disprove) — not from Codex executing the gate. This
-is enough: in that re-review Codex, unable to run a single test, still found six
-real defects purely by reading the handlers/validation against the PRD.
+**Spawned-service gates.** When the harness starts an embedded database,
+testcontainer, broker, or other real service, the PEER environment may lack the
+required process/network/daemon access. That is an environment limitation, not
+a clean gate or a code defect: the PEER reports the exact runnable subset and
+reconstructs the rest statically, while the HOST runs the full gate for binding
+re-verification per Step 4.4. Keep the independent pass neutral and make it read
+all affected code even when it cannot execute the service. orderflow-go
+(2026-05-23): a constrained peer could not bind embedded Postgres and ran only
+package tests; the HOST proved 105/105 + 100% coverage, while static independent
+review still found six real handler/validation defects against the PRD.
 
 ### Lens 16 — Framework presence is not framework binding
 
@@ -794,6 +783,6 @@ silently collapses duplicates). (semaphore-rust 2026-06-17: scanner byte-identic
 the lrucache lineage yet Codex found root-aliasing-not-fail-closed [High] + 3 runner
 malformed-golden gaps incl. duplicate-label-collapse [High] over 2 edit + 2 verdict;
 `src/lib.rs` correct + untouched throughout.) The non-progress abort is the
-key safety valve here — a stub-detection finding that Codex repeatedly
+key safety valve here — a stub-detection finding that the PEER repeatedly
 "fixes" by adding more hardcoded matches should abort the loop with a
 recommendation to route back to `/cdd-implement`.
