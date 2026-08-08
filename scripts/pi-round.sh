@@ -80,8 +80,8 @@ while [ "$i" -lt "${#args[@]}" ]; do
     *) cmd="$arg"; cmd_index="$i"; break ;;
   esac
 done
-# `git init --separate-git-dir` is a command option, not a global one.
-if [ "$cmd" = "init" ]; then
+# `--separate-git-dir` is a command option (init and clone), not a global one.
+if [ "$cmd" = "init" ] || [ "$cmd" = "clone" ]; then
   i=$((cmd_index + 1))
   while [ "$i" -lt "${#args[@]}" ]; do
     arg="${args[$i]}"

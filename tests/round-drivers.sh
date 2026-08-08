@@ -43,6 +43,8 @@ if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
   if git -C "$protected/../scratch" --git-dir ../repo/.git --work-tree "$protected" commit --allow-empty -m peer-path-evil >/dev/null 2>&1; then exit 91; fi
   if (cd "$protected/../scratch" && GIT_DIR=.git GIT_WORK_TREE="$protected" git config peer.evil true >/dev/null 2>&1); then exit 91; fi
   if git -C "$protected/../scratch" init --separate-git-dir "$protected/.git/peer-separate" "$protected/../scratch2" >/dev/null 2>&1; then exit 91; fi
+  # clone also takes --separate-git-dir as a command option.
+  if git -C "$protected/../scratch" clone --separate-git-dir "$protected/.git/peer-clone" "$protected" "$protected/../scratch2" >/dev/null 2>&1; then exit 91; fi
 fi
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI
