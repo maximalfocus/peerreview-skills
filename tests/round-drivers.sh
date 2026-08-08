@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-driver-test.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/scratch"
+mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/scratch" "$tmp/scratch2"
 git -C "$tmp/repo" init -q
 git -C "$tmp/repo" config user.email test@example.invalid
 git -C "$tmp/repo" config user.name Test
@@ -27,15 +27,22 @@ fi
 printf '%s\n' "$*" >> "${PI_FAKE_LOG:?}"
 cat >/dev/null
 [ "${PI_FAKE_RC:-0}" = 0 ] || exit "$PI_FAKE_RC"
-if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
-  if git commit --allow-empty -m peer-must-not-commit >/dev/null 2>&1; then exit 91; fi
-  if git update-ref refs/heads/peer-evil HEAD >/dev/null 2>&1; then exit 91; fi
-fi
 if [ -n "${PI_FAKE_GIT_SCRATCH:-}" ]; then
   git -C "$PI_FAKE_GIT_SCRATCH" init -q
   git -C "$PI_FAKE_GIT_SCRATCH" config user.email test@example.invalid
   git -C "$PI_FAKE_GIT_SCRATCH" config user.name Test
   git -C "$PI_FAKE_GIT_SCRATCH" commit --allow-empty -qm fixture
+fi
+if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
+  protected="$PWD"
+  if git commit --allow-empty -m peer-must-not-commit >/dev/null 2>&1; then exit 91; fi
+  if git update-ref refs/heads/peer-evil HEAD >/dev/null 2>&1; then exit 91; fi
+  # Target redirection must not slip past the guard: env, relative paths, and
+  # init's command-level --separate-git-dir all target the reviewed repo.
+  if GIT_DIR="$protected/.git" GIT_WORK_TREE="$protected" git -C "$protected/../scratch" commit --allow-empty -m peer-env-evil >/dev/null 2>&1; then exit 91; fi
+  if git -C "$protected/../scratch" --git-dir ../repo/.git --work-tree "$protected" commit --allow-empty -m peer-path-evil >/dev/null 2>&1; then exit 91; fi
+  if (cd "$protected/../scratch" && GIT_DIR=.git GIT_WORK_TREE="$protected" git config peer.evil true >/dev/null 2>&1); then exit 91; fi
+  if git -C "$protected/../scratch" init --separate-git-dir "$protected/.git/peer-separate" "$protected/../scratch2" >/dev/null 2>&1; then exit 91; fi
 fi
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI

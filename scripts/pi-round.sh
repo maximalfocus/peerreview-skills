@@ -40,8 +40,8 @@ fi
 
 # Pi intentionally has no permission popups or sandbox. Put a target-scoped git
 # guard first on PATH: the PEER may create temporary fixture repos while running
-# tests, but cannot mutate the reviewed repo or its remotes. The prompt repeats
-# the boundary; HOST still audits HEAD/status.
+# tests, but ordinary git resolution cannot mutate the reviewed checkout's git
+# state. The prompt forbids all remote operations; HOST still audits HEAD/status.
 guard_dir="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-git-guard.XXXXXX")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
@@ -52,8 +52,11 @@ real_git="${PEERREVIEW_REAL_GIT:?}"
 protected_repo="${PEERREVIEW_PROTECTED_REPO:?}"
 args=("$@")
 cmd=""
+cmd_index=-1
 git_cwd="$PWD"
 explicit_git_dir=""
+explicit_work_tree=""
+separate_git_dir=""
 i=0
 while [ "$i" -lt "${#args[@]}" ]; do
   arg="${args[$i]}"
@@ -65,21 +68,59 @@ while [ "$i" -lt "${#args[@]}" ]; do
     --git-dir)
       explicit_git_dir="${args[$((i + 1))]:-}"
       i=$((i + 2)); continue ;;
-    --git-dir=*) explicit_git_dir="${arg#--git-dir=}"; i=$((i + 1)); continue ;;
-    --work-tree|--namespace|--config-env|-c) i=$((i + 2)); continue ;;
-    --work-tree=*|--namespace=*|--config-env=*|-c=*) i=$((i + 1)); continue ;;
+    --git-dir=*) explicit_git_dir="${arg#*=}"; i=$((i + 1)); continue ;;
+    --work-tree)
+      explicit_work_tree="${args[$((i + 1))]:-}"
+      i=$((i + 2)); continue ;;
+    --work-tree=*) explicit_work_tree="${arg#*=}"; i=$((i + 1)); continue ;;
+    --namespace|--config-env|-c) i=$((i + 2)); continue ;;
+    --namespace=*|--config-env=*|-c=*) i=$((i + 1)); continue ;;
     --*) i=$((i + 1)); continue ;;
     -*) i=$((i + 1)); continue ;;
-    *) cmd="$arg"; break ;;
+    *) cmd="$arg"; cmd_index="$i"; break ;;
   esac
 done
+# `git init --separate-git-dir` is a command option, not a global one.
+if [ "$cmd" = "init" ]; then
+  i=$((cmd_index + 1))
+  while [ "$i" -lt "${#args[@]}" ]; do
+    arg="${args[$i]}"
+    case "$arg" in
+      --separate-git-dir) separate_git_dir="${args[$((i + 1))]:-}"; i=$((i + 2)); continue ;;
+      --separate-git-dir=*) separate_git_dir="${arg#*=}" ;;
+    esac
+    i=$((i + 1))
+  done
+fi
 resolved_cwd="$(cd "$git_cwd" 2>/dev/null && pwd -P || printf '%s' "$git_cwd")"
+# Normalize existing paths and non-existing children through their physical
+# parent so relative, `..`, and symlink aliases match the protected checkout.
+resolve_path() {
+  case "$1" in /*) target="$1" ;; *) target="$resolved_cwd/$1" ;; esac
+  if [ -d "$target" ]; then
+    cd "$target" 2>/dev/null && pwd -P || printf '%s' "$target"
+  else
+    parent="$(dirname "$target")"
+    base="$(basename "$target")"
+    physical_parent="$(cd "$parent" 2>/dev/null && pwd -P || printf '%s' "$parent")"
+    printf '%s/%s' "$physical_parent" "$base"
+  fi
+}
+protect_git_dir() {
+  target="$(resolve_path "$1")"
+  case "$target" in "$protected_repo/.git"|"$protected_repo/.git"/*) protected=1 ;; esac
+}
+protect_work_tree() {
+  target="$(resolve_path "$1")"
+  case "$target" in "$protected_repo"|"$protected_repo"/*) protected=1 ;; esac
+}
 protected=0
 case "$resolved_cwd" in "$protected_repo"|"$protected_repo"/*) protected=1 ;; esac
-if [ -n "$explicit_git_dir" ]; then
-  case "$explicit_git_dir" in /*) resolved_git_dir="$explicit_git_dir" ;; *) resolved_git_dir="$resolved_cwd/$explicit_git_dir" ;; esac
-  case "$resolved_git_dir" in "$protected_repo/.git"|"$protected_repo/.git"/*) protected=1 ;; esac
-fi
+[ -n "$explicit_git_dir" ] && protect_git_dir "$explicit_git_dir"
+[ -n "$explicit_work_tree" ] && protect_work_tree "$explicit_work_tree"
+[ -n "$separate_git_dir" ] && protect_git_dir "$separate_git_dir"
+[ -n "${GIT_DIR:-}" ] && protect_git_dir "$GIT_DIR"
+[ -n "${GIT_WORK_TREE:-}" ] && protect_work_tree "$GIT_WORK_TREE"
 case "$cmd" in
   add|am|apply|bisect|branch|checkout|cherry-pick|clean|clone|commit|config|fast-import|fetch|filter-branch|gc|init|merge|mv|notes|pull|push|rebase|remote|replace|reset|restore|revert|rm|stash|submodule|switch|symbolic-ref|tag|update-ref|worktree)
     if [ "$protected" -eq 1 ]; then
