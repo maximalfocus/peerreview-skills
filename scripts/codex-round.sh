@@ -36,9 +36,14 @@ if [ -n "${CODEX_ADD_DIRS:-}" ]; then
 fi
 
 # A fresh round starts a new session with the workspace-write sandbox so the
-# PEER can co-edit; later rounds and the verdict resume that anchored session
-# (cwd-filtered `resume --last`, which inherits the session's sandbox).
-if [ "$round" = "1" ] || [ "$round" = "--fresh" ]; then
+# PEER can co-edit; later rounds resume that anchored session (cwd-filtered
+# `resume --last`, which inherits the session's sandbox). `codex exec resume`
+# cannot restrict an anchored session, so the read-only verdict runs in a fresh
+# `read-only` sandbox: the PEER can inspect the committed state but cannot edit.
+if [ "$round" = "--verdict" ]; then
+  exec_args=(exec -C "$repo_dir" -s read-only)
+  [ "${#add_dir_args[@]}" -gt 0 ] && exec_args+=("${add_dir_args[@]}")
+elif [ "$round" = "1" ] || [ "$round" = "--fresh" ]; then
   exec_args=(exec -C "$repo_dir" -s workspace-write)
   [ "${#add_dir_args[@]}" -gt 0 ] && exec_args+=("${add_dir_args[@]}")
 else

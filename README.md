@@ -58,7 +58,8 @@ peerreview-skills/
 Evolution is governed by [`CONSTITUTION.md`](CONSTITUTION.md): a lesson either
 passes the constitution and is edited into a skill file, or it fails and nothing
 happens. **There is no `evolution/` log** — git history is the record; the raw
-session traces at `~/.claude/projects/` are the diagnostic source. (The former
+session traces (Pi: `$TMPDIR/peerreview-pi-sessions/`; Codex CLI:
+`~/.codex/sessions/`) are the diagnostic source. (The former
 `INDEX.md` / `PATTERNS.md` / `runs/` were removed on 2026-07-03 when peerreview
 adopted this constitution.)
 

@@ -154,8 +154,10 @@ not_contains "$CODEX_FAKE_LOG" "workspace-write"
 
 : > "$CODEX_FAKE_LOG"
 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict
-contains "$CODEX_FAKE_LOG" "resume"
-contains "$CODEX_FAKE_LOG" "--last"
+contains "$CODEX_FAKE_LOG" "exec"
+contains "$CODEX_FAKE_LOG" "-s read-only"
+not_contains "$CODEX_FAKE_LOG" "resume"
+not_contains "$CODEX_FAKE_LOG" "workspace-write"
 contains "$tmp/codex.stdin" "Read-only verdict round"
 
 base_head="$(git -C "$tmp/repo" rev-parse HEAD)"

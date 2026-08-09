@@ -713,7 +713,7 @@ re-verified):
   (user durable directive, 2026-05-21). After the last edit-round, send
   the PEER a verdict-only prompt (no edits permitted) asking for either
   `CONVERGED — no substantive defects remain` or `NOT CONVERGED — round
-  N+1 needed, [defects listed]`. Resume the fixed PEER read-only with
+  N+1 needed, [defects listed]`. Run the fixed PEER's read-only verdict with
   `pi-round.sh <repo> <verdict> <out> --verdict` or `codex-round.sh <repo>
   <verdict> <out> --verdict`, matching Step 0.0. Verify the diff stays empty.
   The HOST no longer declares convergence
