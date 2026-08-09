@@ -195,6 +195,10 @@ blank line) passes every test yet corrupts any body reader. Probe at least one
 `wsgi.input` carrying the entire raw request instead of just the body; the
 cross-vendor pass caught it, plus a second-order bug in the fix's `exc_info`
 replace-before-send guard.) For terminal/web-terminal changes that enable **OSC 52 clipboard output**, the user-selection happy path is a narrow security oracle: execute a pane/application-originated OSC 52 write (and read-back query when supported) and prove it cannot mutate or exfiltrate the host clipboard while the user's explicit selection still can. A green copy test under tmux `set-clipboard on` misses clipboard poisoning; `external` preserves tmux-owned selections while rejecting pane-app access. (2026-07-24 agent-sandbox: bidirectional copy passed, but this adversarial probe forced `on` → `external`.)
+For hostname/domain security classifiers, normalize DNS-equivalent inputs before tiering: case-fold
+ASCII names and strip a single trailing root dot, then parity-test mixed case, trailing-dot, and
+suffix-boundary near misses across implementations. Otherwise one blocked destination can fall from
+a human-review tier into an unattended fallback. (agent-sandbox PR #52, 2026-08-09.)
 
 State the detected profile(s) in the plan you present at Step 2 so the user
 can override if the heuristic misfires.
