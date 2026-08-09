@@ -199,6 +199,10 @@ For hostname/domain security classifiers, normalize DNS-equivalent inputs before
 ASCII names and strip a single trailing root dot, then parity-test mixed case, trailing-dot, and
 suffix-boundary near misses across implementations. Otherwise one blocked destination can fall from
 a human-review tier into an unattended fallback. (agent-sandbox PR #52, 2026-08-09.)
+For layered configuration defaults (example/template → orchestrator interpolation → runtime parser),
+test each layer independently: a render populated by the example can mask an unsafe orchestrator
+fallback. Render once with the relevant process variables cleared and an empty env file, then with
+the example and explicit opt-in; mutation-flip each fallback. (agent-sandbox PR #54, 2026-08-09.)
 
 State the detected profile(s) in the plan you present at Step 2 so the user
 can override if the heuristic misfires.
