@@ -769,6 +769,15 @@ re-verified):
     Step 6 push is unconditional regardless; the absent CONVERGED line is the
     residual the user accepts when re-invoking, not silently inherited as
     "converged". There is no alternate peer path while the required side is blocked.
+  - **The verdict prompt must make READING explicit — a read-only sandbox still
+    permits reading every file with the PEER's Read tool; "do not run commands"
+    means no mutating commands, not "cannot read" (Reporting-Platform-CC-Sandbox
+    architecture 2026-08-09). A verdict returned as NOT CONVERGED premised on
+    "review is impossible because I may not run commands" is a wrong-premise
+    verdict, the same class as the gate-count miscount rule above: re-dispatch
+    the verdict once with the corrected instruction (state plainly that reading
+    is allowed and expected; only edits/commits/pushes/remotes are forbidden),
+    never treat it as a real residual and never edit the artifact to satisfy it.
 
 Anything not fixable without changing host state / running real
 infrastructure / external review is **not** a blocker — it is recorded as a
