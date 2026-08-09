@@ -484,7 +484,7 @@ zero projection divisor, non-positive dims, raster/AO/texture bounds, degenerate
 UV basis, malformed TGA — over 4 edit rounds + a Lens-6 ADR-0004 contradiction,
 before a true CONVERGED). Also budget wall-clock: a large math-PRD PEER round can
 exceed the drivers' 1800s default and return empty — kill stragglers and retry
-with `PI_ROUND_TIMEOUT` or `CLAUDE_ROUND_TIMEOUT` raised (raycaster-prd round 1).
+with `PI_ROUND_TIMEOUT` or `CODEX_ROUND_TIMEOUT` raised (raycaster-prd round 1).
 
 **Re-runs after a topology-changing follow-up commit** (a new sibling repo,
 an artifact moved between repos, a stub/scaffold promoted) need an explicit

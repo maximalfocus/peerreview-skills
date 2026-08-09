@@ -7,8 +7,8 @@ A cross-model co-editing **peer-review gate** for skill-generated repos.
 Skill workflows (cdd, system, tutorial, present, …) produce repos whose
 artifacts are "believed done" but never adversarially checked against the
 problem they were meant to solve. `/peerreview` closes that gap: the HOST acts
-as reviewer/manager and the fixed independent pair co-edits (Pi/OpenAI host →
-Claude Code peer; Claude Code host → Pi/OpenAI peer) until a fresh active review
+as reviewer/manager and the fixed independent pair co-edits (Pi/DeepSeek host →
+Codex CLI peer; Codex CLI host → Pi/DeepSeek peer) until a fresh active review
 charter is objectively satisfied and verification is green.
 
 ## How it works
@@ -20,9 +20,9 @@ charter is objectively satisfied and verification is green.
 - `/peerreview` reads the active charter **adversarially**, works out a review plan
   and a *round forecast* (transparency only), then loops:
   HOST reviews → PEER co-edits (`scripts/pi-round.sh` or
-  `scripts/claude-round.sh`) → HOST re-verifies the real diff and re-runs the
-  gate → commit the round. Pi is pinned to `openai-codex` subscription OAuth;
-  Claude Code may use native Anthropic subscription auth or DeepSeek model config.
+  `scripts/codex-round.sh`) → HOST re-verifies the real diff and re-runs the
+  gate → commit the round. Pi is pinned to the `deepseek` API-key provider;
+  Codex CLI must use an OpenAI ChatGPT subscription (`codex login`).
 - **Fail closed.** If either required side is missing, unauthenticated,
   quota-blocked, or returns no report, the review stops—there is no third CLI or
   same-HOST substitute.
@@ -43,8 +43,9 @@ peerreview-skills/
 ├── skills/peerreview-evolve/SKILL.md   ← the /peerreview-evolve methodology filter
 ├── skills/peerreview-approach-*/       ← per-artifact review-lens modules (Read-loaded)
 ├── templates/PROBLEM.md                ← the active review-charter schema
-├── scripts/pi-round.sh                 ← Pi/OpenAI co-edit + verdict driver
-├── scripts/claude-round.sh             ← Claude Code co-edit + verdict driver
+├── scripts/pi-round.sh                 ← Pi/DeepSeek co-edit + verdict driver
+├── scripts/codex-round.sh              ← Codex CLI co-edit + verdict driver
+├── scripts/git-guard.sh                ← shared PEER git-mutation guard
 ├── scripts/peer-auth.sh                ← credential-safe fixed-pair preflight
 ├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
 ├── scripts/charter-temp.sh             ← private active-charter lifecycle
@@ -68,21 +69,17 @@ converged repo.
 
 ## Install
 
-### Claude Code
-
-Symlink each skill into `~/.claude/skills/`, matching the one-repo-per-family
-convention (cdd-skills, system-skills, …). `/peerreview` is the review gate;
-`/peerreview-evolve` is the methodology-evolution filter.
-
-```sh
-ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.claude/skills/peerreview
-ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.claude/skills/peerreview-evolve
-```
+The fixed pair is **Pi (DeepSeek API key) ↔ Codex CLI (OpenAI ChatGPT
+subscription)**; `/peerreview` runs as HOST inside either and fails closed
+anywhere else (Claude Code can still load the skill, but `select-peer.sh`
+rejects it as an unsupported HOST). Symlink the same source skills into each
+side's skill directory.
 
 ### Pi
 
-Authenticate Pi interactively with `/login` and select the OpenAI ChatGPT
-subscription, then symlink the same source skills:
+Pi is the DeepSeek API-key side of the pair: select a DeepSeek model provider
+(API key present, e.g. via `DEEPSEEK_API_KEY`), then symlink the same source
+skills:
 
 ```sh
 ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.pi/agent/skills/peerreview
@@ -90,6 +87,19 @@ ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.pi/agent/skills/p
 ```
 
 Restart Pi after installation so it rebuilds the skill index.
+
+### Codex CLI
+
+The Codex CLI is the OpenAI-subscription side of the pair: log in with
+`codex login` (ChatGPT subscription — API-key auth is not this contract), then
+symlink the same source skills:
+
+```sh
+ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.codex/skills/peerreview
+ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.codex/skills/peerreview-evolve
+```
+
+Restart Codex after installation so it rebuilds the skill index.
 
 ## Producer integration
 

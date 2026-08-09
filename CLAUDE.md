@@ -23,7 +23,7 @@ Both skills are authored only in `skills/<name>/SKILL.md`:
 
 There is **no `commands/` mirror** (unlike cdd-skills) — peerreview is user-initiated with no `~/.claude/commands/` dependency. Keep it that way unless a concrete need appears.
 
-Pi loads the same source skills directly from `~/.pi/agent/skills/<name>/SKILL.md`. Symlink `skills/*` there; do not create a separate Pi mirror because `skills/` is already the portable artifact. Authenticate Pi through `/login` with the OpenAI ChatGPT subscription before using it as the peer side.
+Pi loads the same source skills directly from `~/.pi/agent/skills/<name>/SKILL.md`, and the Codex CLI from `~/.codex/skills/<name>/SKILL.md`. Symlink `skills/*` there; do not create a separate mirror because `skills/` is already the portable artifact. The fixed pair is Pi with a DeepSeek API-key provider ↔ Codex CLI with an OpenAI ChatGPT subscription (`codex login`); authenticate each side before using it as the peer.
 
 ## Approach modules (`skills/peerreview-approach-*`)
 

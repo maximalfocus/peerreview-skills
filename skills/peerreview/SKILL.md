@@ -1,8 +1,8 @@
 ---
 name: peerreview
-description: "Cross-model co-editing peer-review gate. Pi with an OpenAI subscription and Claude Code with Anthropic or DeepSeek peer-review each other until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
+description: "Cross-model co-editing peer-review gate. Pi with a DeepSeek API key and the Codex CLI with an OpenAI subscription peer-review each other until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
 disable-model-invocation: true
-allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(pi *) Bash(claude *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
+allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(pi *) Bash(codex *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
 argument-hint: "[repo_path] [--dry-run]"
 ---
 
@@ -31,16 +31,15 @@ HOST's selected model:
 
 | Execution HOST | Required PEER | Driver |
 |---|---|---|
-| Pi with selected provider `openai-codex` | Claude Code | `scripts/claude-round.sh` |
-| Claude Code (`CLAUDECODE`) | Pi with `openai-codex` subscription OAuth | `scripts/pi-round.sh` |
+| Pi with selected provider `deepseek` | Codex CLI | `scripts/codex-round.sh` |
+| Codex CLI (process marker) | Pi with `deepseek` API-key provider | `scripts/pi-round.sh` |
 
 Resolve this mechanically with
 `~/personal/peerreview-skills/scripts/select-peer.sh` and use its exact
 HOST/PEER/DRIVER/AUTH_SIDE result. It checks Pi's process marker first and
-requires that HOST to have selected `PI_PROVIDER=openai-codex`; outside Pi it
-requires the Claude Code marker. Ambiguous/unsupported HOST or a Pi HOST on any
-other provider → stop. A third CLI, the standalone Codex CLI, and same-HOST
-review are not substitutes.
+requires that HOST to have selected `PI_PROVIDER=deepseek`; outside Pi it
+requires the Codex CLI marker. Ambiguous/unsupported HOST or a Pi HOST on any
+other provider → stop. A third CLI and same-HOST review are not substitutes.
 
 ## Inputs
 
@@ -56,12 +55,12 @@ review are not substitutes.
 
    ```bash
    ~/personal/peerreview-skills/scripts/peer-auth.sh pi
-   ~/personal/peerreview-skills/scripts/peer-auth.sh claude
+   ~/personal/peerreview-skills/scripts/peer-auth.sh codex
    ```
 
-   Claude Code must report either native Anthropic subscription auth or a
-   DeepSeek model configuration. Pi must report `openai-codex` subscription
-   OAuth from Pi `/login`; API-key auth is not this contract. Missing CLI/auth,
+   Codex CLI must report an OpenAI ChatGPT subscription (`codex login`).
+   Pi must report the `deepseek` API-key provider (`pi auth check --provider
+   deepseek`). Missing CLI/auth,
    usage limits, or a failed/empty round are terminal blockers: disclose the
    exact failure, clean `ACTIVE_CHARTER` if created, and stop. Do not invoke a
    third CLI or continue with a same-HOST review. A transient network failure
@@ -93,7 +92,7 @@ review are not substitutes.
 
 ## Required-pair failure (fail closed)
 
-Pi/OpenAI ↔ Claude Code is the only valid pair. If the PEER is missing,
+Pi/DeepSeek ↔ Codex CLI is the only valid pair. If the PEER is missing,
 unauthenticated, quota-blocked, or returns no non-empty report/verdict, state the
 blocker and stop after charter cleanup. Never label a HOST-only pass converged,
 never substitute another CLI, and never push review edits made without the
@@ -529,9 +528,9 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    AC or defect class. Restate: minimal edits, no commit/push, run and report the
    gate. The PEER may challenge traceability; the HOST revises the temp charter,
    never the repo, unless the durable source itself is defective.
-3. **PEER co-edits**: run the fixed-pair driver. **Claude Code HOST →**
+3. **PEER co-edits**: run the fixed-pair driver. **Codex CLI HOST →**
    `~/personal/peerreview-skills/scripts/pi-round.sh <repo> <prompt> <out> <round>`.
-   **Pi HOST →** `~/personal/peerreview-skills/scripts/claude-round.sh <repo>
+   **Pi HOST →** `~/personal/peerreview-skills/scripts/codex-round.sh <repo>
    <prompt> <out> <round>`. Every prompt restates no-commit/push. Pass `1` for a
    fresh first session and `2`+ to continue it. Reference the script by this
    absolute repo path—only `SKILL.md` is symlinked into the skill directory. If
@@ -676,7 +675,7 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
 5. **Commit the round**: `peerreview: round <N> — <one-line summary>`
    (co-authored: HOST reviewer + PEER co-editor — name the actual two models
-   and tools, e.g. Claude Code reviewer + Pi/OpenAI co-editor, or reversed). If a round makes things
+   and tools, e.g. Codex CLI reviewer + Pi/DeepSeek co-editor, or reversed). If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
@@ -715,7 +714,7 @@ re-verified):
   the PEER a verdict-only prompt (no edits permitted) asking for either
   `CONVERGED — no substantive defects remain` or `NOT CONVERGED — round
   N+1 needed, [defects listed]`. Resume the fixed PEER read-only with
-  `pi-round.sh <repo> <verdict> <out> --verdict` or `claude-round.sh <repo>
+  `pi-round.sh <repo> <verdict> <out> --verdict` or `codex-round.sh <repo>
   <verdict> <out> --verdict`, matching Step 0.0. Verify the diff stays empty.
   The HOST no longer declares convergence
   unilaterally — even a clean gate + reviewer-judged exhausted lenses is
@@ -742,7 +741,7 @@ re-verified):
     review) is a yellow flag — re-prove convergence neutrally, do not rubber-stamp.
   - **A peer usage-limit error during the verdict prompt is a "verdict-pending"
     residual, NOT a silent CONVERGED (student-mgmt-conformance 2026-05-29).**
-    Pi/OpenAI or Claude Code can return a usage-limit error instead of rendering
+    Pi/DeepSeek or Codex CLI can return a usage-limit error instead of rendering
     the verdict; treat either identically. This is a transient
     external-system failure, not a NOT-CONVERGED outcome. **The convergence
     contract is NOT satisfied** (no explicit CONVERGED line). Do NOT fabricate
@@ -839,8 +838,8 @@ git history of the skills is the record; never re-create a patterns/index log.
 ## Hard rules
 
 - The HOST owns git. The PEER co-editor never commits, pushes, or touches remotes.
-- The only pairing is Pi/OpenAI ↔ Claude Code: Pi HOST → Claude Code PEER;
-  Claude Code HOST → Pi `openai-codex` subscription PEER. Any missing/auth/quota
+- The only pairing is Pi/DeepSeek ↔ Codex CLI: Pi HOST → Codex CLI PEER;
+  Codex CLI HOST → Pi `deepseek` API-key provider PEER. Any missing/auth/quota
   blocker fails closed; no third CLI or same-HOST substitute (Step 0.0).
 - Every round: review the real diff + re-run the gate. Never trust self-reports
   — including fact-checking any identifier/API the PEER claims it "corrected".

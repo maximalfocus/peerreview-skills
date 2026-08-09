@@ -17,7 +17,7 @@ Read [`~/personal/peerreview-skills/CONSTITUTION.md`](../../CONSTITUTION.md) —
 ## Evidence, not summaries
 
 There are no summary logs to read — reconstruct what actually happened from primary sources:
-- **Raw session traces**: under Pi, inspect `$PI_SESSION_FILE`; under Claude Code, use `~/.claude/projects/{sanitized-path}/{session-id}.jsonl` (replace `/` with `-`, prefix with `-`). Grep selectively for verdicts, dismissed-then-confirmed findings, `NOT CONVERGED` streaks, fallback disclosures, and gate errors.
+- **Raw session traces**: under Pi, inspect `$PI_SESSION_FILE`; under Claude Code, use `~/.claude/projects/{sanitized-path}/{session-id}.jsonl` (replace `/` with `-`, prefix with `-`); under the Codex CLI, use the newest `~/.codex/sessions/{YYYY}/{MM}/{DD}/rollout-*.jsonl` for the reviewed repo. Grep selectively for verdicts, dismissed-then-confirmed findings, `NOT CONVERGED` streaks, fallback disclosures, and gate errors.
 - **Git history** of the skills and of the reviewed repos — `git log`, `git diff`. A recurring defect class the review keeps catching (or keeps *missing* until a re-run) is the signal that a lens should sharpen or a new one should exist.
 
 ## Trigger modes
