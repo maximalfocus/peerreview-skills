@@ -217,7 +217,12 @@ security surface, blast radius), produce:
   only after child exit hangs on regressions. Set the subprocess timeout to the
   budget, map timeout to budget failure, then validate exit/output/cardinality
   before accepting elapsed success; mutation-test timeout, non-zero, malformed
-  output, and non-finite budgets. (ArchSift NFR-005, 2026-08-07.) Prose-spec repos
+  output, and non-finite budgets. (ArchSift NFR-005, 2026-08-07.) **For
+  multi-process/container smoke gates, a producer artifact or running status
+  proves only producer readiness:** wait for the consumer's post-init control
+  state, then repeat cold starts to expose races. (agent-sandbox PR #51:
+  the shared CA predated agent `OUTPUT DROP`, causing 2/3 false failures.)
+  Prose-spec repos
   (PRD/charter/design docs, no code): the dominant defect class is internal
   cross-reference inconsistency, not code correctness — gate on
   reference-closure (every flag/term/identifier referenced is defined in its
