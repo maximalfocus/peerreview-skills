@@ -108,6 +108,17 @@ profile.)
   strings match `path:line` patterns and false-positive the gate (love-
   portal2-infra 2026-07-06: 6 baseline false-fails, all WebSEAL domains/proxy
   IPs; Step 0.5 self-test caught them).
+- **Evidence-glob family coverage (known sets, not ≥1 match):** when an
+  evidence token is a glob over a file family with a known member set
+  (per-variant compose overlays, per-platform scripts, cert bundles),
+  "expands to ≥1 file" is a false-green — a glob can match files yet omit a
+  member of the known family (`docker-compose.*.aws.yml` matched the variant
+  overlays but silently missed the default `docker-compose.aws.yml`). Assert
+  the full expected member set (default + every variant) and mutation-test by
+  dropping one member. (agent-sandbox-prd 2026-08-10: the HOST's
+  ≥1-file glob gate passed while CAS-R092's evidence omitted the default AWS
+  overlay; the PEER's external-tree read caught it and corrected the glob to
+  `docker-compose*.aws.yml`.)
 - **Charter must pin the ground-truth roots.** If the charter's Source of
   truth omits a repo the evidence file cites (or the user names), treat as the
   stale-charter case in Step 0: refresh the active temp charter before the loop.
