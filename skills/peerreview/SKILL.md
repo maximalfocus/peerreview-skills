@@ -3,7 +3,7 @@ name: peerreview
 description: "Cross-model co-editing peer-review gate. Pi with a DeepSeek API key and the Codex CLI with an OpenAI subscription peer-review each other until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
 disable-model-invocation: true
 allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(pi *) Bash(codex *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
-argument-hint: "[repo_path] [--dry-run]"
+argument-hint: "[repo_path] [--chat] [--dry-run]"
 ---
 
 # /peerreview — cross-model co-editing peer-review gate
@@ -44,12 +44,21 @@ other provider → stop. A third CLI and same-HOST review are not substitutes.
 ## Inputs
 
 - `repo_path` — defaults to the current working directory.
+- `--chat` — review a pre-repository idea/spec supplied in the conversation. The
+  HOST captures it as `ARTIFACT.md` inside a private ephemeral Git workspace;
+  the converged artifact is returned in chat, then the workspace is deleted.
 - `--dry-run` — produce the plan and stop; do not invoke the PEER or edit files.
 
 ## Step 0 — Preconditions (fail closed)
 
-1. `repo_path` is a git repository. If not, stop and tell the user (offer
-   `git init` only if they ask).
+1. Normally, `repo_path` is a git repository. If not, stop and tell the user
+   (offer `git init` only if they ask). With explicit `--chat` intent, instead
+   create `CHAT_WORKSPACE` using
+   `bash ~/personal/peerreview-skills/scripts/chat-review-temp.sh new`, capture
+   the supplied idea faithfully as `ARTIFACT.md`, and use that private Git repo
+   for driver compatibility and attributable rounds. The user's current
+   instruction is durable intent; if the material to review is absent or
+   materially ambiguous, clean the workspace and stop rather than invent it.
 2. Preflight **both fixed sides**; this validates CLI presence and auth without
    printing credentials, regardless of which side is HOST:
 
@@ -86,9 +95,22 @@ other provider → stop. A third CLI and same-HOST review are not substitutes.
    stale duplicate contracts without weakening charter-first review.
 5. Fetch the checkpoint with `bash ~/personal/peerreview-skills/scripts/review-anchor.sh latest <repo> --fetch`.
    No/non-ancestor anchor, changed intent, or unbounded/cross-cutting impact selects **full**; otherwise select **incremental** anchor→HEAD + impact closure (consumers, contracts, tests, docs, migrations, generated artifacts).
-   Incremental is never diff-only: run the full gate and escalate if impact cannot be bounded. Under `~/projects` (tags are forbidden git writes), always select full.
+   Incremental is never diff-only: run the full gate and escalate if impact cannot be bounded. Under `~/projects` (tags are forbidden git writes), always select full. In `--chat` mode, select full and skip checkpoint fetch because the wrapper has no remote or prior anchor.
 6. **Self-test the active charter's Verification gate before the loop:** from
    repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^`.
+
+### Chat-artifact delivery policy (`--chat`)
+
+This is a delivery exception, not a weaker review: preflight the same fixed
+pair, derive the same fresh private charter, commit an ephemeral baseline and
+rounds, run the same gates, and require the same neutral explicit PEER verdict.
+The artifact defaults to the `prose-spec` profile unless its content proves a
+more specific profile. Never add a remote, push, create an anchor tag, or treat
+the temporary wrapper as product scope. Before cleanup, preserve the final
+artifact and per-AC report in the response; then run
+`bash ~/personal/peerreview-skills/scripts/chat-review-temp.sh clean "$CHAT_WORKSPACE"`.
+Clean `CHAT_WORKSPACE` on every terminal exit, including dry-run, auth failure,
+ambiguity, non-progress, and verdict-pending.
 
 ## Required-pair failure (fail closed)
 
@@ -721,7 +743,8 @@ re-verified):
   nits do not block.
 - The working tree is clean and every change is committed. *(Path-scoped
   git policy: instead — all intended edits are present in the working tree
-  and peerreview committed/pushed nothing.)*
+  and peerreview committed/pushed nothing. Chat-artifact mode: commits are
+  ephemeral evidence only and are removed with `CHAT_WORKSPACE` after delivery.)*
 - **The PEER has explicitly returned CONVERGED** in a final verdict prompt
   (user durable directive, 2026-05-21). After the last edit-round, send
   the PEER a verdict-only prompt (no edits permitted) asking for either
@@ -831,8 +854,11 @@ because the user durably asked for it; do not re-prompt.) **Exception:**
 under the **Path-scoped git policy** (`~/projects`), do the opposite — do
 not commit or push; leave edits uncommitted/untracked and say so plainly.
 The absent push there is the expected outcome, not a failure to flag.
+**Chat-artifact exception:** no remote, push, or anchor is created. Return the
+reviewed artifact and report, clean both `ACTIVE_CHARTER` and `CHAT_WORKSPACE`,
+and state that the review was ephemeral.
 
-After true fixed-pair convergence (not abort), run
+After true fixed-pair convergence (not abort and not `--chat`), run
 `bash ~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental>`;
 push the returned tag exactly. It marks the reviewed commit; round commits retain
 detail. Under `~/projects`, create no tag.
@@ -886,10 +912,12 @@ git history of the skills is the record; never re-create a patterns/index log.
   no `evolution/` log, no every-run self-evolve+push. A durable lesson is routed
   through `/peerreview-evolve`, which gates it against the constitution and
   commits; a non-actionable run leaves no trace.
-- Every run ends by pushing the reviewed repo (fail loud if a push cannot
-  complete). **Sole exception:** under the **Path-scoped git policy** the
+- Every repository run ends by pushing the reviewed repo (fail loud if a push cannot
+  complete). **Exceptions:** under the **Path-scoped git policy** the
   *reviewed repo* is never committed or pushed (left for manual Windows-side
-  commit). Evolving `peerreview-skills` is separate and pull-based, not part of
-  every run — see § After completion.
+  commit). **Chat-artifact mode is also non-publishing by design:** its private
+  wrapper is deleted after the converged artifact is returned. Evolving
+  `peerreview-skills` is separate and pull-based, not part of every run — see
+  § After completion.
 
-$ARGUMENTS: optional `repo_path` (default: cwd) and `--dry-run`.
+$ARGUMENTS: optional `repo_path` (default: cwd), `--chat`, and `--dry-run`.
