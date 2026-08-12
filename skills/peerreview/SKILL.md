@@ -170,6 +170,7 @@ generic prose and let the PEER be briefed against the right defect classes.
 | Profile | Detection markers | Approach module |
 |---|---|---|
 | `cdd-prd` | top-level `PRD.md` + ≥1 `PLAN-*.md` | `~/personal/peerreview-skills/skills/peerreview-approach-cdd-prd/SKILL.md` |
+| `idd-prd` | top-level `PRD.md` + top-level `PROGRESS.md` AND no `PLAN-*.md` (evaluate after the `cdd-prd` row) | `~/personal/peerreview-skills/skills/peerreview-approach-idd-prd/SKILL.md` |
 | `cdd-conformance` | `conformance/` dir with `test.json` leaves, OR top-level golden-file categories | `~/personal/peerreview-skills/skills/peerreview-approach-cdd-conformance/SKILL.md` |
 | `cdd-implementation` | language manifest (`package.json` / `pom.xml` / `pyproject.toml` / `go.mod` / `Cargo.toml`) + sibling `*-conformance/` OR top-level `conformance/` | `~/personal/peerreview-skills/skills/peerreview-approach-cdd-implementation/SKILL.md` |
 | `evidence-docs` | evidence file (`SOURCES.md` or equivalent) whose `path:line` citations point OUTSIDE the repo + charter Source-of-truth naming external repo paths | `~/personal/peerreview-skills/skills/peerreview-approach-evidence-docs/SKILL.md` |
