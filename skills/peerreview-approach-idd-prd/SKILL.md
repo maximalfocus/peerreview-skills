@@ -113,11 +113,11 @@ python3 - <<'EOF'
 import re, sys
 s = open('PROGRESS.md').read()
 vocab = {'pending','active','landed','validated','done','reviewed','blocked','deferred','planned'}
-# extract the second-to-last non-empty cell of each data row (the Status column)
+# extract the Status cell (2nd) of each data row; skip separator rows AND the header row
 for i, line in enumerate(s.splitlines(), 1):
     if line.lstrip().startswith('|') and not re.match(r'^\|[\s\-:|]+\|$', line):
         cells = [c.strip() for c in line.strip().strip('|').split('|')]
-        if len(cells) >= 3 and cells[1].lower() not in vocab and not re.match(r'^#+\s', line):
+        if len(cells) >= 3 and cells[1].lower() not in vocab and cells[1].lower() != 'status':
             sys.exit(f'PROGRESS.md:{i} unknown status: {cells[1]}')
 EOF
 ```
