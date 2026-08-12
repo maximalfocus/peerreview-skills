@@ -134,15 +134,19 @@ python3 - <<'EOF'
 import re, sys
 s = open('PROGRESS.md').read()
 done_status = {'landed','done','validated'}
+req_id = re.compile(r'^(?:FR|NFR|SLICE|BR|REQ)-[0-9]{3}\b', re.I)
 for i, line in enumerate(s.splitlines(), 1):
     if line.lstrip().startswith('|'):
         cells = [c.strip() for c in line.strip().strip('|').split('|')]
-        if len(cells) >= 2 and cells[1].lower() in done_status:
+        if len(cells) >= 2 and req_id.match(cells[0]) and cells[1].lower() in done_status:
             row = ' '.join(cells).lower()
             if not re.search(r'#\d+|/pull/\d+|reconcile', row):
-                sys.exit(f'PROGRESS.md:{i} done-status row without evidence link')
+                sys.exit(f'PROGRESS.md:{i} done-status requirement row without evidence link')
 EOF
 ```
+
+  (Artifact rows — PRD, naming, tracker — are exempt: only requirement/slice rows
+  need evidence links; their completion is recorded in Notes.)
 
 - The standard prose-spec amendments from `/peerreview` Step 2 and the
   `cdd-prd` module apply unchanged: leaked-tag grep, `^\|`-anchored TBD/TODO
