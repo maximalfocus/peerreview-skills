@@ -2,7 +2,7 @@
 
 The law that governs every change to the peerreview methodology. It exists so that evolution is a **filter, not an accumulator**: a finding either passes this constitution and is integrated into a skill file, or it fails and **nothing happens** — no queue, no log, no "deferred" pile. The skills are the product; git history is the record; the raw session traces at `~/.claude/projects/` are the diagnostic source. There is no separate `evolution/` log — the former `INDEX.md` / `PATTERNS.md` / `runs/` were removed on 2026-07-03 when peerreview adopted this constitution — and re-creating one is a violation of Article 1.
 
-**Articles 1–5 are the shared, family-agnostic law of the `*-skills` evolve methodology** — reproduced **byte-identical** in every family's own `CONSTITUTION.md` (`cdd-skills`, `system-skills`, `tutorial-skills`, `knowledge-skills`, `note-skills`, `present-skills`, `peerreview-skills`, `video-skills`); `cdd-skills/tools/constitution-sync.sh` enforces that they do not drift (cdd-skills is the reference). Articles 6–9 are specific to peerreview-skills. The `/peerreview-evolve` skill reads **this** file first and applies it as the gate.
+**Articles 1–5 are the shared, family-agnostic law of the `*-skills` evolve methodology** — reproduced **byte-identical** in every family's own `CONSTITUTION.md` (`cdd-skills`, `system-skills`, `tutorial-skills`, `knowledge-skills`, `note-skills`, `present-skills`, `peerreview-skills`, `video-skills`, `releasereview-skills`); `cdd-skills/tools/constitution-sync.sh` enforces that they do not drift (cdd-skills is the reference). Articles 6–9 are specific to peerreview-skills. The `/peerreview-evolve` skill reads **this** file first and applies it as the gate.
 
 ---
 
@@ -28,6 +28,7 @@ A change passes only if it clears all of:
 1. **High value, proven.** Not speculative, not "nice to have," not a theoretical pattern without evidence from a real project or an established industry practice. Evidence strength must match the claim: a mechanically reproducible defect or established practice may be proven in one pass; a recurring behavioral observation needs multiple independent occurrences. Rough gate: `Impact × Confidence / Effort ≥ 3` (each 1–5). Confidence is *how proven*, not how plausible.
 2. **Not already covered.** Check the current skill files. Corroboration of an existing rule is not a change.
 3. **Fits the size gate** (Article 6) after it lands.
+4. **Equal-or-better.** The change must leave every project the methodology already served the same or better — a rule that fixes one stack can misfire on another, and a deletion that "preserves capability" (Art. 2) is a claim until checked. Name the run it would most likely have made *worse* and check it against real traces in `~/.claude/projects/`; a change whose named case does not clear is narrowed or dropped, not landed and watched.
 
 ## Article 4 — Instruction-surface classification
 
