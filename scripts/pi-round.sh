@@ -30,7 +30,10 @@ repo_key="$(printf '%s' "$repo_dir" | cksum | awk '{print $1}')"
 session_dir="${PEERREVIEW_PI_SESSION_DIR:-${TMPDIR:-/tmp}/peerreview-pi-sessions/$repo_key}"
 mkdir -p "$session_dir"
 
-args=(-p --provider deepseek --session-dir "$session_dir" --no-extensions --no-skills --no-prompt-templates)
+# Pin the tier-2 Pi model explicitly so the peer tier is true by construction
+# rather than inherited from whatever the provider default happens to be.
+args=(-p --provider deepseek --model "${PEERREVIEW_PI_MODEL:-deepseek-v4-flash}"
+  --session-dir "$session_dir" --no-extensions --no-skills --no-prompt-templates)
 if [ "$round" = "--verdict" ]; then
   args+=(-c --tools read,grep,find,ls --append-system-prompt "Read-only verdict: do not edit files or run commands.")
 else

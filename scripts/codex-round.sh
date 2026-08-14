@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Drive one Codex CLI co-edit round non-interactively in the target repo.
-# Used when /peerreview runs in Pi; the reverse direction uses pi-round.sh.
+# The tier-1 peer whenever the HOST is not itself the Codex CLI.
 # Usage: codex-round.sh <repo_dir> <prompt_file> <last_message_out> [round|--verdict]
-# CODEX_ADD_DIRS may contain newline-separated external evidence directories
-# (granted on the fresh round; the resumed session inherits its permissions).
+# PEERREVIEW_ADD_DIRS (or CODEX_ADD_DIRS) may contain newline-separated external
+# evidence directories (granted on the fresh round; the resumed session inherits
+# its permissions).
 set -euo pipefail
 
 repo_dir="${1:?repo_dir}"
@@ -27,12 +28,13 @@ if [ "$timeout_s" != "0" ]; then
 fi
 
 add_dir_args=()
-if [ -n "${CODEX_ADD_DIRS:-}" ]; then
+add_dirs="${PEERREVIEW_ADD_DIRS:-${CODEX_ADD_DIRS:-}}"
+if [ -n "$add_dirs" ]; then
   while IFS= read -r dir; do
     [ -n "$dir" ] || continue
-    [ -d "$dir" ] || { printf 'peerreview: CODEX_ADD_DIRS path is not a directory: %s\n' "$dir" >&2; exit 66; }
+    [ -d "$dir" ] || { printf 'peerreview: PEERREVIEW_ADD_DIRS path is not a directory: %s\n' "$dir" >&2; exit 66; }
     add_dir_args+=(--add-dir "$dir")
-  done <<< "$CODEX_ADD_DIRS"
+  done <<< "$add_dirs"
 fi
 
 # A fresh round starts a new session with the workspace-write sandbox so the

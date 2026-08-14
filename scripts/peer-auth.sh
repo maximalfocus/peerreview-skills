@@ -1,11 +1,35 @@
 #!/usr/bin/env bash
-# Verify the fixed /peerreview pair without printing credentials.
-# Usage: peer-auth.sh <pi|codex>
+# Verify one /peerreview peer side is reachable, without printing credentials.
+# Usage: peer-auth.sh <claude|codex|pi|dsh>
 set -euo pipefail
 
-side="${1:?side (pi|codex)}"
+side="${1:?side (claude|codex|pi|dsh)}"
 
 case "$side" in
+  claude)
+    command -v claude >/dev/null 2>&1 || {
+      printf 'peerreview: claude CLI not found. Install Claude Code and run `claude auth login`.\n' >&2
+      exit 69
+    }
+    auth_json="$(claude auth status 2>/dev/null)" || {
+      printf 'peerreview: Claude Code is not logged in (run `claude auth login` and sign in with your Claude subscription).\n' >&2
+      exit 69
+    }
+    CLAUDE_AUTH_JSON="$auth_json" python3 - <<'PY' || {
+import json, os, sys
+try:
+    auth = json.loads(os.environ["CLAUDE_AUTH_JSON"])
+except (KeyError, json.JSONDecodeError):
+    sys.exit(1)
+if not auth.get("loggedIn") or auth.get("authMethod") != "claude.ai":
+    sys.exit(1)
+PY
+      printf 'peerreview: Claude Code is not authenticated with a Claude subscription (run `claude auth login`; raw API-key auth is not this contract).\n' >&2
+      exit 69
+    }
+    printf 'READY claude subscription\n'
+    ;;
+
   pi)
     command -v pi >/dev/null 2>&1 || {
       printf 'peerreview: pi CLI not found. Install Pi and select a DeepSeek model provider.\n' >&2
@@ -51,8 +75,26 @@ PY
     exit 69
     ;;
 
+  dsh)
+    command -v dsh >/dev/null 2>&1 || {
+      printf 'peerreview: DeepSeek Harness (dsh) not found.\n' >&2
+      exit 69
+    }
+    [ -n "${DEEPSEEK_API_KEY:-}" ] || {
+      printf 'peerreview: DEEPSEEK_API_KEY is not set for the DeepSeek Harness.\n' >&2
+      exit 69
+    }
+    # Composes the profile tree offline — proves the harness boots without
+    # spending a model call or printing the key.
+    dsh --profile headless --dump-config >/dev/null 2>&1 || {
+      printf 'peerreview: DeepSeek Harness headless profile does not compose (run `dsh --profile headless --dump-config`).\n' >&2
+      exit 69
+    }
+    printf 'READY dsh deepseek api_key\n'
+    ;;
+
   *)
-    printf 'peerreview: unsupported auth side: %s (expected pi or codex).\n' "$side" >&2
+    printf 'peerreview: unsupported auth side: %s (expected claude, codex, pi, or dsh).\n' "$side" >&2
     exit 64
     ;;
 esac

@@ -1,8 +1,8 @@
 ---
 name: peerreview
-description: "Cross-model co-editing peer-review gate. Pi with a DeepSeek API key and the Codex CLI with an OpenAI subscription peer-review each other until a fresh active charter is satisfied and verification is green. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
+description: "Cross-model co-editing peer-review gate. A HOST harness and an independent cross-vendor PEER co-edit until a fresh active charter is satisfied and verification is green. Tier-1 peers are Claude Code and the Codex CLI; Pi/DeepSeek-Harness are the tier-2 fallback. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
 disable-model-invocation: true
-allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(pi *) Bash(codex *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
+allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(claude *) Bash(codex *) Bash(pi *) Bash(dsh *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
 argument-hint: "[repo_path] [--chat] [--dry-run]"
 ---
 
@@ -26,20 +26,28 @@ through it via `/peerreview-evolve`, never written to a log (there is none).
 ## Step 0.0 — Identify HOST and PEER
 
 The HOST running this skill reviews/orchestrates and owns git, verification,
-fact-checking, and convergence. The pair is fixed by tool, not inferred from the
-HOST's selected model:
+fact-checking, and convergence; the PEER only co-edits. Resolve both mechanically
+with `~/personal/peerreview-skills/scripts/select-peer.sh <repo_path>` and use its
+exact `HOST/PEER/DRIVER/AUTH_SIDE/TIER` result. It detects the HOST from process
+markers (Claude Code, Codex CLI, Pi, DeepSeek Harness), walks the ladder below in
+order, and preflights each candidate's CLI **and** auth — so it is also the peer
+preflight Step 0 needs:
 
-| Execution HOST | Required PEER | Driver |
+| Tier | PEER | Selected when |
 |---|---|---|
-| Pi with selected provider `deepseek` | Codex CLI | `scripts/codex-round.sh` |
-| Codex CLI (process marker) | Pi with `deepseek` API-key provider | `scripts/pi-round.sh` |
+| 1 | Claude Code, Claude subscription | HOST is not Claude Code |
+| 1 | Codex CLI, OpenAI ChatGPT subscription | HOST is not the Codex CLI |
+| 2 | DeepSeek Harness `dsh` (deepseek-v4-pro) | no tier-1 peer reachable **and** the repo carries CDD markers (`cdd-prd` / `cdd-conformance` / `cdd-implementation`) |
+| 2 | Pi, `deepseek` API-key provider (deepseek-v4-flash) | no tier-1 peer reachable, every other repo |
 
-Resolve this mechanically with
-`~/personal/peerreview-skills/scripts/select-peer.sh` and use its exact
-HOST/PEER/DRIVER/AUTH_SIDE result. It checks Pi's process marker first and
-requires that HOST to have selected `PI_PROVIDER=deepseek`; outside Pi it
-requires the Codex CLI marker. Ambiguous/unsupported HOST or a Pi HOST on any
-other provider → stop. A third CLI and same-HOST review are not substitutes.
+**The PEER vendor is never the HOST vendor.** A same-vendor pass is not a peer
+review — this methodology's own evidence is that degraded same-vendor passes miss
+whole defect families — so a DeepSeek HOST (Pi or `dsh`) has the two tier-1 peers
+and no tier-2 fallback, and a Pi HOST must still be on `PI_PROVIDER=deepseek`
+because that pins the vendor the ladder resolves against. Tier 2 is a **disclosed
+degradation, not an equal peer**: name the tier that actually ran in the report.
+Unsupported HOST, or no cross-vendor peer reachable → stop (**Required-peer
+failure**). A same-HOST review is never a substitute.
 
 ## Inputs
 
@@ -59,21 +67,19 @@ other provider → stop. A third CLI and same-HOST review are not substitutes.
    for driver compatibility and attributable rounds. The user's current
    instruction is durable intent; if the material to review is absent or
    materially ambiguous, clean the workspace and stop rather than invent it.
-2. Preflight **both fixed sides**; this validates CLI presence and auth without
-   printing credentials, regardless of which side is HOST:
-
-   ```bash
-   ~/personal/peerreview-skills/scripts/peer-auth.sh pi
-   ~/personal/peerreview-skills/scripts/peer-auth.sh codex
-   ```
-
-   Codex CLI must report an OpenAI ChatGPT subscription (`codex login`).
-   Pi must report the `deepseek` API-key provider (`pi auth check --provider
-   deepseek`). Missing CLI/auth,
-   usage limits, or a failed/empty round are terminal blockers: disclose the
-   exact failure, clean `ACTIVE_CHARTER` if created, and stop. Do not invoke a
-   third CLI or continue with a same-HOST review. A transient network failure
-   may be re-probed once and retried fresh only after preflight is green.
+2. Peer preflight is the Step 0.0 resolution itself — `select-peer.sh <repo>`
+   validates each candidate's CLI presence and auth without printing credentials
+   (`claude auth status` reporting a Claude subscription; `codex login status`
+   reporting a ChatGPT subscription; `pi auth check --provider deepseek`; `dsh`
+   with `DEEPSEEK_API_KEY` and a composing headless profile), and it exits 69
+   only when no cross-vendor peer survives. Raw-API-key auth on a subscription
+   side is not this contract. A resolved tier-2 peer means every tier-1 peer was
+   unreachable — disclose which, and why, in the report. Usage limits or a
+   failed/empty round mid-run are terminal blockers: disclose the exact failure,
+   clean `ACTIVE_CHARTER` if created, and stop; never re-ladder to a different
+   peer mid-run, which would discard the anchored session and the round history.
+   A transient network failure may be re-probed once and retried fresh only
+   after resolution is green.
 3. Working tree + delivery branch: note uncommitted changes. When durable intent names a
    GitHub issue/PR, read its live state before any commit: review an OPEN PR on its head branch;
    a MERGED PR/CLOSED issue needs a follow-up branch (or a stop), never review commits on the
@@ -101,9 +107,10 @@ other provider → stop. A third CLI and same-HOST review are not substitutes.
 
 ### Chat-artifact delivery policy (`--chat`)
 
-This is a delivery exception, not a weaker review: preflight the same fixed
-pair, derive the same fresh private charter, commit an ephemeral baseline and
-rounds, run the same gates, and require the same neutral explicit PEER verdict.
+This is a delivery exception, not a weaker review: resolve the peer through the
+same Step 0.0 ladder (the ephemeral wrapper never carries CDD markers, so its
+tier-2 fallback is Pi), derive the same fresh private charter, commit an ephemeral
+baseline and rounds, run the same gates, and require the same neutral PEER verdict.
 The artifact defaults to the `prose-spec` profile unless its content proves a
 more specific profile. Never add a remote, push, create an anchor tag, or treat
 the temporary wrapper as product scope. Before cleanup, preserve the final
@@ -112,14 +119,14 @@ artifact and per-AC report in the response; then run
 Clean `CHAT_WORKSPACE` on every terminal exit, including dry-run, auth failure,
 ambiguity, non-progress, and verdict-pending.
 
-## Required-pair failure (fail closed)
+## Required-peer failure (fail closed)
 
-Pi/DeepSeek ↔ Codex CLI is the only valid pair. If the PEER is missing,
-unauthenticated, quota-blocked, or returns no non-empty report/verdict, state the
-blocker and stop after charter cleanup. Never label a HOST-only pass converged,
-never substitute another CLI, and never push review edits made without the
-mandatory PEER round. Resume by re-running `/peerreview` after the named blocker
-is resolved.
+A cross-vendor PEER from the Step 0.0 ladder is mandatory. If `select-peer.sh`
+resolves none, or the resolved PEER is quota-blocked or returns no non-empty
+report/verdict, state the blocker and stop after charter cleanup. Never label a
+HOST-only pass converged, never fall back to a same-vendor peer, and never push
+review edits made without the mandatory PEER round. Resume by re-running
+`/peerreview` after the named blocker is resolved.
 
 ## Path-scoped git policy (repos under `~/projects`)
 
@@ -564,14 +571,14 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    AC or defect class. Restate: minimal edits, no commit/push, run and report the
    gate. The PEER may challenge traceability; the HOST revises the temp charter,
    never the repo, unless the durable source itself is defective.
-3. **PEER co-edits**: run the fixed-pair driver. **Codex CLI HOST →**
-   `~/personal/peerreview-skills/scripts/pi-round.sh <repo> <prompt> <out> <round>`.
-   **Pi HOST →** `~/personal/peerreview-skills/scripts/codex-round.sh <repo>
-   <prompt> <out> <round>`. Every prompt restates no-commit/push. Pass `1` for a
-   fresh first session and `2`+ to continue it. Reference the script by this
-   absolute repo path—only `SKILL.md` is symlinked into the skill directory. If
-   the required driver is unreachable or returns a failed/empty result, apply
-   **Required-pair failure**; do not improvise an inline or third-CLI path.
+3. **PEER co-edits**: run the `DRIVER` Step 0.0 resolved —
+   `~/personal/peerreview-skills/scripts/<DRIVER> <repo> <prompt> <out> <round>`.
+   Every prompt restates no-commit/push. Pass `1` for a fresh first session and
+   `2`+ to continue it. Reference the script by this absolute repo path—only
+   `SKILL.md` is symlinked into the skill directory. `dsh-round.sh` has no session
+   resume, so every `dsh` round is fresh: its prompt must stay self-contained. If
+   the driver is unreachable or returns a failed/empty result, apply
+   **Required-peer failure**; do not improvise an inline or different-CLI path.
 4. **Re-verify independently**: read the real `git diff HEAD` AND `git status`
    (for new untracked files the PEER created — `git diff HEAD` only shows tracked
    changes; a new `Dockerfile` or generated file is invisible to it) — do not trust
@@ -711,7 +718,7 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
 5. **Commit the round**: `peerreview: round <N> — <one-line summary>`
    (co-authored: HOST reviewer + PEER co-editor — name the actual two models
-   and tools, e.g. Codex CLI reviewer + Pi/DeepSeek co-editor, or reversed). If a round makes things
+   and tools, e.g. Claude Code reviewer + Codex CLI co-editor, or reversed). If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
@@ -750,9 +757,11 @@ re-verified):
   (user durable directive, 2026-05-21). After the last edit-round, send
   the PEER a verdict-only prompt (no edits permitted) asking for either
   `CONVERGED — no substantive defects remain` or `NOT CONVERGED — round
-  N+1 needed, [defects listed]`. Run the fixed PEER's read-only verdict with
-  `pi-round.sh <repo> <verdict> <out> --verdict` or `codex-round.sh <repo>
-  <verdict> <out> --verdict`, matching Step 0.0. Verify the diff stays empty.
+  N+1 needed, [defects listed]`. Run the resolved PEER's read-only verdict with
+  `<DRIVER> <repo> <verdict> <out> --verdict` (Step 0.0). Verify the diff stays
+  empty; `dsh-round.sh` asserts that itself — because the harness has no tool
+  allowlist — and fails the round if the tree moved, leaving the mutation in
+  place for you to adjudicate rather than reverting the review out from under you.
   The HOST no longer declares convergence
   unilaterally — even a clean gate + reviewer-judged exhausted lenses is
   insufficient if the PEER still sees residuals. If the PEER returns NOT
@@ -778,8 +787,8 @@ re-verified):
     review) is a yellow flag — re-prove convergence neutrally, do not rubber-stamp.
   - **A peer usage-limit error during the verdict prompt is a "verdict-pending"
     residual, NOT a silent CONVERGED (student-mgmt-conformance 2026-05-29).**
-    Pi/DeepSeek or Codex CLI can return a usage-limit error instead of rendering
-    the verdict; treat either identically. This is a transient
+    Any peer CLI can return a usage-limit error instead of rendering
+    the verdict; treat them identically. This is a transient
     external-system failure, not a NOT-CONVERGED outcome. **The convergence
     contract is NOT satisfied** (no explicit CONVERGED line). Do NOT fabricate
     a verdict, do NOT silently treat reviewer-side green as the verdict, and do
@@ -792,7 +801,7 @@ re-verified):
     from the current committed state and complete the verdict. The
     Step 6 push is unconditional regardless; the absent CONVERGED line is the
     residual the user accepts when re-invoking, not silently inherited as
-    "converged". There is no alternate peer path while the required side is blocked.
+    "converged". Never re-ladder to another peer while the resolved side is blocked.
   - **The verdict prompt must make READING explicit — a read-only sandbox still
     permits reading every file with the PEER's Read tool; "do not run commands"
     means no mutating commands, not "cannot read" (Reporting-Platform-CC-Sandbox
@@ -829,6 +838,9 @@ confident reasoning can be wrong at once, and only execution is authoritative.
 Produce an honest report:
 
 - Per-AC status (met / met-with-caveat / not met + why).
+- **HOST/PEER and the peer tier that actually ran.** On tier 2, name every
+  tier-1 peer that was unreachable and why — an undisclosed degradation reads
+  as a full-strength review.
 - Rounds actually run vs forecast, and why it converged or aborted.
 - Verification gate output.
 - Residuals (explicitly out of scope; not "perfect", and say so).
@@ -837,7 +849,8 @@ When Step 1.5 detected a `cdd-*` profile, **finish every terminal report by
 rendering the canonical CDD progress map** from
 `~/personal/cdd-skills/skills/cdd/SKILL.md` § Progress map. `/peerreview` owns
 this update because only it knows the terminal review outcome: explicit
-fixed-pair `CONVERGED` → `✓ reviewed`; required-pair failure, verdict-pending,
+cross-vendor `CONVERGED` → `✓ reviewed` (tier 2 still counts, with the tier
+named); required-peer failure, verdict-pending,
 or non-progress abort → `☐ review owed`. Never advance the
 project's `PLAN.md` lifecycle status merely because its repo review finished.
 
@@ -859,7 +872,7 @@ The absent push there is the expected outcome, not a failure to flag.
 reviewed artifact and report, clean both `ACTIVE_CHARTER` and `CHAT_WORKSPACE`,
 and state that the review was ephemeral.
 
-After true fixed-pair convergence (not abort and not `--chat`), run
+After true cross-vendor convergence (not abort and not `--chat`), run
 `bash ~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental>`;
 push the returned tag exactly. It marks the reviewed commit; round commits retain
 detail. Under `~/projects`, create no tag.
@@ -887,9 +900,10 @@ git history of the skills is the record; never re-create a patterns/index log.
 ## Hard rules
 
 - The HOST owns git. The PEER co-editor never commits, pushes, or touches remotes.
-- The only pairing is Pi/DeepSeek ↔ Codex CLI: Pi HOST → Codex CLI PEER;
-  Codex CLI HOST → Pi `deepseek` API-key provider PEER. Any missing/auth/quota
-  blocker fails closed; no third CLI or same-HOST substitute (Step 0.0).
+- The PEER is whatever `select-peer.sh` resolves: tier-1 Claude Code ↔ Codex CLI,
+  falling to tier-2 `dsh` (CDD-harnessed repos) or Pi (all others) only when no
+  tier-1 peer is reachable, and never to the HOST's own vendor. Any
+  missing/auth/quota blocker fails closed; no same-HOST substitute (Step 0.0).
 - Every round: review the real diff + re-run the gate. Never trust self-reports
   — including fact-checking any identifier/API the PEER claims it "corrected".
 - **A PEER finding you DISMISS must be verified against the cited line, never

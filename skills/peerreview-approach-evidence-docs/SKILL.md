@@ -26,16 +26,16 @@ ground-truth-sourced, zero false positives).
 The round prompt MUST name the external ground-truth repo paths and instruct
 the PEER to open cited files itself. A peer briefed only on the repo dir
 reviews internal consistency and misses the dominant defect class entirely.
-(The PEER can read cited files outside the repo dir — Pi's read tool is
-unrestricted and the Codex CLI gets external dirs via `CODEX_ADD_DIRS`; this is
-what makes the pass work.)
+(The PEER can read cited files outside the repo dir — Pi's and the DeepSeek
+Harness's read tools are unrestricted, and the Codex CLI and Claude Code get
+external dirs via `PEERREVIEW_ADD_DIRS`; this is what makes the pass work.)
 On co-edit rounds, the HOST's diff re-verification must re-check every edited
 claim against the cited external file — an edit that "fixes" a finding by
 rewording without re-reading the source is the self-serving failure mode here.
-For a Codex CLI PEER, pass every external root (and the active-charter directory
-when its gate reads it) to `codex-round.sh` through newline-separated absolute
-paths in `CODEX_ADD_DIRS`; the Codex sandbox otherwise denies access outside the
-workspace.
+For a Codex CLI or Claude Code PEER, pass every external root (and the
+active-charter directory when its gate reads it) to the round driver through
+newline-separated absolute paths in `PEERREVIEW_ADD_DIRS`; those sandboxes
+otherwise deny access outside the workspace.
 
 ## Brief the PEER with these lenses
 
