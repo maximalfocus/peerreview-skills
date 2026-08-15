@@ -906,16 +906,26 @@ git history of the skills is the record; never re-create a patterns/index log.
   missing/auth/quota blocker fails closed; no same-HOST substitute (Step 0.0).
 - Every round: review the real diff + re-run the gate. Never trust self-reports
   — including fact-checking any identifier/API the PEER claims it "corrected".
-- **A PEER finding you DISMISS must be verified against the cited line, never
-  waved off as "a misread" or "out of (edit) scope."** A finding pointing at a
-  *sibling* repo outside your edit scope still has to be confirmed/refuted by
-  reading the exact file:line, then recorded as a flagged cross-repo defect if
-  real — not silently dropped. A wrong dismissal persists the defect until the
-  sibling is reviewed directly. (2026-06-18: an mvcc-prd run refuted a Codex
-  finding that `mvcc-conformance/gc/README.md` said "tombstone collapses chain /
-  reclaimed=2" as a misread + out-of-scope; the direct mvcc-conformance review a
-  day later confirmed both stale claims were really there — Codex was right, the
-  dismissal was the error.)
+- **Any live finding you DISMISS must be verified against the cited line — the
+  PEER's, *and one you raised yourself*.** Never wave it off as "a misread" or
+  "out of (edit) scope." A finding pointing at a *sibling* repo outside your edit
+  scope still has to be confirmed/refuted by reading the exact file:line, then
+  recorded as a flagged cross-repo defect if real — not silently dropped; a wrong
+  dismissal persists the defect until the sibling is reviewed directly.
+  (2026-06-18 mvcc-prd: a Codex finding that `mvcc-conformance/gc/README.md`
+  claimed "tombstone collapses chain / reclaimed=2" was refuted as a misread +
+  out-of-scope; the direct review a day later confirmed both stale claims — the
+  dismissal was the error.) **A finding YOU surfaced and then resolved in your own
+  favour goes into the verdict prompt as an open question, never omitted as
+  settled**: give both readings and say plainly the PEER is not asked to agree.
+  That does not re-create the orderflow-go anchoring failure — one contested item
+  with an explicit invitation to disagree is not an agenda handoff. (ArchSift contract
+  2026-08-15: the host's own completeness sweep found the reference tool's write-boundary
+  redaction had no ArchSift counterpart, then argued it away as already covered by
+  the public-repo sanitised-derivative ban; surfaced as an open question, Codex
+  returned NOT CONVERGED — that ban governs publication, not the record FR-011
+  emits for circulation to review boards — and the next round landed NFR-009.
+  Self-dismissal, not peer dismissal, was the near-miss.)
 - Fail loud and closed: auto-create a fresh active charter; absent or conflicting
   durable intent → stop, never infer it from implementation. Missing peer/auth,
   quota, or empty output → disclose the blocker and stop after charter cleanup.
