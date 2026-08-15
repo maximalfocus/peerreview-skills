@@ -95,14 +95,35 @@ python3 - <<'EOF'
 import re, sys
 prd = open('PRD.md').read()
 prog = open('PROGRESS.md').read()
-prd_ids = set(re.findall(r'\b(?:FR|NFR|SLICE|BR|REQ)-[0-9]{3}\b', prd))
-prog_ids = set(re.findall(r'\b(?:FR|NFR|SLICE|BR|REQ)-[0-9]{3}\b', prog))
+ID = r'(?:FR|NFR|SLICE|BR|REQ)'
+# PRD authority is the DEFINING heading, not every prose mention of an ID.
+prd_ids = set(re.findall(rf'^#+\s+({ID}-[0-9]{{3}})\b', prd, re.M))
+# A tracker legitimately writes a contiguous span as `FR-003`–`FR-005`; expand it
+# (deterministic, unlike an elided list `FOO-002,003,008`, which stays a defect).
+prog_ids = set()
+for pfx, a, b in re.findall(rf'`({ID})-(\d{{3}})`\s*[–-]\s*`{ID}-(\d{{3}})`', prog):
+    prog_ids |= {f'{pfx}-{n:03d}' for n in range(int(a), int(b) + 1)}
+prog_ids |= set(re.findall(rf'\b{ID}-[0-9]{{3}}\b', prog))
+if not prd_ids: sys.exit('gate blind: no PRD requirement headings matched — fix the extractor')
 missing_in_tracker = prd_ids - prog_ids
 orphan_rows = prog_ids - prd_ids
 if missing_in_tracker: sys.exit(f'PRD IDs missing from PROGRESS: {sorted(missing_in_tracker)}')
 if orphan_rows: sys.exit(f'PROGRESS IDs without PRD anchor: {sorted(orphan_rows)}')
 EOF
 ```
+
+  Both refinements are load-bearing, not cosmetic. Matching every prose mention on
+  the PRD side, and not expanding ranges on the tracker side, fail-closes on a
+  conformant artifact: measured 2026-08-15 across the five repos of this profile,
+  the unfixed gate false-positives on three — `ArchSift contract` (`FR-004`),
+  `cloud-sandbox-prd` (`NFR-007`), and `reservation-bola-demo-prd` (**18**
+  spurious "missing" IDs). The blind guard matters because heading-authority
+  silently matches nothing on a PRD that does not use `### FR-0NN` headings, which
+  would green the gate instead of reddening it. Mutation-test after any edit here:
+  dropping a defined ID and adding an undefined one must both fail, and so must
+  shrinking a range — but only where that ID is reachable *solely* through the
+  range. Where it also appears literally in another row, closure genuinely still
+  holds and passing is correct (`docscan-prd` behaves that way).
 
 - **Status vocabulary** (Lens 2) — every status cell belongs to the declared
   set; a status value outside it fails:
