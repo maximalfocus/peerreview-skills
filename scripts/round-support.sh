@@ -13,6 +13,15 @@
 #   0 disables the deadline. Returns the child's exit code, or 124 on timeout —
 #   the same convention `timeout` uses, so callers' existing `rc -eq 124`
 #   handling keeps working whichever path is taken.
+#
+#   Every driver feeds the peer its prompt on stdin. Bash redirects an
+#   asynchronous command's stdin from /dev/null "in the absence of any explicit
+#   redirections", so the watchdog path below MUST redirect fd 0 explicitly or
+#   the peer is launched with no prompt at all. That failure is near-silent: the
+#   peer either errors on an empty prompt or, worse, answers a prompt it never
+#   received, and a verdict from a peer that never saw the charter satisfies the
+#   convergence contract with nothing. Observed 2026-08-19 on doc-permit: a verdict
+#   round returned `No prompt provided via stdin` because this path dropped it.
 rd_run() {
   local secs="$1"; shift
   if [ "$secs" = "0" ]; then "$@"; return $?; fi
@@ -21,7 +30,10 @@ rd_run() {
 
   # No coreutils: enforce the deadline ourselves rather than dropping it.
   local flag; flag="$(mktemp)"; rm -f "$flag"
-  "$@" &
+  # Fixed fd, not bash 4's `{var}<&0`: macOS ships bash 3.2 and the drivers
+  # run under /usr/bin/env bash, so a named-fd form fails at runtime there.
+  exec 9<&0
+  "$@" <&9 &
   local child=$! killer rc=0
   ( sleep "$secs"; : > "$flag"; kill -TERM "$child" 2>/dev/null
     sleep 5; kill -KILL "$child" 2>/dev/null ) >/dev/null 2>&1 &
@@ -31,6 +43,7 @@ rd_run() {
   # alive proves nothing; the flag records whether the deadline actually fired.
   if [ -e "$flag" ]; then rc=124; fi
   kill "$killer" 2>/dev/null; wait "$killer" 2>/dev/null || true
+  exec 9<&-
   rm -f "$flag"
   return $rc
 }

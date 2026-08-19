@@ -57,6 +57,23 @@ fi
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI
 
+cat > "$tmp/bin/claude" <<'FAKE_CLAUDE'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = auth ] && [ "${2:-}" = status ]; then
+  case "${CLAUDE_FAKE_AUTH:-subscription}" in
+    subscription) printf '{"loggedIn":true,"authMethod":"claude.ai"}\n' ;;
+    apikey) printf '{"loggedIn":true,"authMethod":"apiKey"}\n' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+printf '%s\n' "$*" >> "${CLAUDE_FAKE_LOG:?}"
+cat > "${CLAUDE_FAKE_STDIN:-/dev/null}"
+[ "${CLAUDE_FAKE_RC:-0}" = 0 ] || exit "$CLAUDE_FAKE_RC"
+printf 'CLAUDE_OK\n'
+FAKE_CLAUDE
+
 cat > "$tmp/bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -85,24 +102,57 @@ for a in "$@"; do
 done
 [ -z "$out_file" ] || { [ "${CODEX_FAKE_EMPTY:-0}" = 1 ] || printf 'CODEX_OK\n' > "$out_file"; }
 FAKE_CODEX
-chmod +x "$tmp/bin/pi" "$tmp/bin/codex" "$root/scripts/peer-auth.sh" "$root/scripts/select-peer.sh" "$root/scripts/pi-round.sh" "$root/scripts/codex-round.sh" "$root/scripts/git-guard.sh"
-export PATH="$tmp/bin:$PATH"
-export PI_ROUND_TIMEOUT=0 CODEX_ROUND_TIMEOUT=0
+chmod +x "$tmp/bin/pi" "$tmp/bin/codex" "$tmp/bin/claude" "$root/scripts/peer-auth.sh" "$root/scripts/select-peer.sh" "$root/scripts/pi-round.sh" "$root/scripts/codex-round.sh" "$root/scripts/git-guard.sh"
+export PATH="$tmp/bin:/usr/bin:/bin"
+export PI_ROUND_TIMEOUT=120 CODEX_ROUND_TIMEOUT=120 CLAUDE_ROUND_TIMEOUT=120
+# Scrub every HOST marker select-peer.sh consults. Whichever agent runs this
+# suite exports its own, and an inherited marker silently changes the detected
+# HOST — the same leak class as an unpinned PATH. Each assertion sets exactly
+# the markers it is testing.
+unset DSH_SESSION_ID DSH_HOME PI_CODING_AGENT AI_AGENT PI_PROVIDER \
+      CODEX_CI CODEX_THREAD_ID CLAUDECODE CLAUDE_CODE_ENTRYPOINT
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 contains() { grep -F -- "$2" "$1" >/dev/null || fail "$1 missing: $2"; }
 not_contains() { ! grep -F -- "$2" "$1" >/dev/null || fail "$1 unexpectedly contains: $2"; }
 
+# rd_run's own contract on the no-coreutils watchdog path. This is the path that
+# ships by default on stock macOS, and it must not eat the peer's prompt: bash
+# redirects an async command's stdin from /dev/null unless fd 0 is redirected
+# explicitly, so a regression here launches the peer with no prompt at all and a
+# verdict can come back from a model that never saw the charter.
+( set +e
+  . "$root/scripts/round-support.sh"
+  printf 'RD_PROMPT\n' > "$tmp/rd.in"
+  got="$(rd_run 30 cat < "$tmp/rd.in")"
+  [ "$got" = RD_PROMPT ] || fail "rd_run watchdog path dropped stdin (got: '$got')"
+  rd_run 30 sh -c 'exit 42' < "$tmp/rd.in"; [ $? -eq 42 ] || fail "rd_run watchdog path lost the exit code"
+  rd_run 1 sleep 5 < "$tmp/rd.in"; [ $? -eq 124 ] || fail "rd_run watchdog path did not report a timeout as 124"
+  got="$(rd_run 0 cat < "$tmp/rd.in")"
+  [ "$got" = RD_PROMPT ] || fail "rd_run deadline-disabled path dropped stdin (got: '$got')"
+) || exit 1
+
 # HOST detection is tool-defined and Pi wins even if a nested process inherited
 # the Codex CLI's marker.
 selection="$(PI_CODING_AGENT=true AI_AGENT=pi PI_PROVIDER=deepseek CODEX_CI=1 "$root/scripts/select-peer.sh")"
-[ "$selection" = "HOST=pi PEER=codex DRIVER=codex-round.sh AUTH_SIDE=codex" ] || fail "Pi HOST selection: $selection"
+[ "$selection" = "HOST=pi HOST_VENDOR=deepseek PEER=claude PEER_VENDOR=anthropic DRIVER=claude-round.sh AUTH_SIDE=claude TIER=1" ] || fail "Pi HOST selection: $selection"
+selection="$(CLAUDE_FAKE_AUTH=none PI_CODING_AGENT=true AI_AGENT=pi PI_PROVIDER=deepseek CODEX_CI=1 "$root/scripts/select-peer.sh")"
+[ "$selection" = "HOST=pi HOST_VENDOR=deepseek PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1" ] || fail "Pi HOST tier-1 fallback to Codex: $selection"
 if PI_CODING_AGENT=true PI_PROVIDER=anthropic "$root/scripts/select-peer.sh" >/dev/null 2>&1; then fail "non-DeepSeek Pi HOST was accepted"; fi
 selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER; CODEX_CI=1 "$root/scripts/select-peer.sh")"
-[ "$selection" = "HOST=codex PEER=pi DRIVER=pi-round.sh AUTH_SIDE=pi" ] || fail "Codex HOST selection: $selection"
+[ "$selection" = "HOST=codex HOST_VENDOR=openai PEER=claude PEER_VENDOR=anthropic DRIVER=claude-round.sh AUTH_SIDE=claude TIER=1" ] || fail "Codex HOST selection: $selection"
 selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER; CODEX_THREAD_ID=019f-1234 "$root/scripts/select-peer.sh")"
-[ "$selection" = "HOST=codex PEER=pi DRIVER=pi-round.sh AUTH_SIDE=pi" ] || fail "Codex THREAD_ID HOST selection: $selection"
-if (unset PI_CODING_AGENT AI_AGENT PI_PROVIDER CODEX_CI CODEX_THREAD_ID; "$root/scripts/select-peer.sh" >/dev/null 2>&1); then fail "unsupported HOST was accepted"; fi
+[ "$selection" = "HOST=codex HOST_VENDOR=openai PEER=claude PEER_VENDOR=anthropic DRIVER=claude-round.sh AUTH_SIDE=claude TIER=1" ] || fail "Codex THREAD_ID HOST selection: $selection"
+# Tier 2 is reached only when no tier-1 peer authenticates, and is disclosed.
+selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER; CLAUDE_FAKE_AUTH=none CODEX_CI=1 "$root/scripts/select-peer.sh")"
+[ "$selection" = "HOST=codex HOST_VENDOR=openai PEER=pi PEER_VENDOR=deepseek DRIVER=pi-round.sh AUTH_SIDE=pi TIER=2" ] || fail "Codex HOST tier-2 fallback: $selection"
+# A Claude subscription is the contract; raw API-key auth is not.
+selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER; CLAUDE_FAKE_AUTH=apikey CODEX_CI=1 "$root/scripts/select-peer.sh")"
+case "$selection" in *"PEER=claude"*) fail "API-key Claude was accepted as a tier-1 peer: $selection" ;; esac
+if (unset PI_CODING_AGENT AI_AGENT PI_PROVIDER CODEX_CI CODEX_THREAD_ID CLAUDECODE CLAUDE_CODE_ENTRYPOINT DSH_SESSION_ID DSH_HOME; "$root/scripts/select-peer.sh" >/dev/null 2>&1); then fail "unsupported HOST was accepted"; fi
+# A Claude Code HOST must never be paired with a Claude peer.
+selection="$(CLAUDECODE=1 "$root/scripts/select-peer.sh")"
+[ "$selection" = "HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1" ] || fail "Claude HOST selection: $selection"
 
 # Codex HOST -> Pi/DeepSeek PEER: fresh, continuation, verdict, auth, output, git guard.
 export PI_FAKE_LOG="$tmp/pi.log"

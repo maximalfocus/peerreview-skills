@@ -56,6 +56,17 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
      SKIPS yet still greens lets a stale image through (the renderer is a
      project toolchain dep). touchstone 2026-05-25: @latest broke hermeticity;
      a skip-and-green was caught at the verdict and replaced with fail-closed.
+     A NON-ZERO diff on a tree you believe is correct is a cause to find, not a
+     tolerance to widen — every threshold loose enough to absorb render noise is
+     also loose enough to pass a stale artifact. Two causes account for most of
+     it: the renderer's user profile (render everywhere through a throwaway
+     profile; a default-profile render differed from an isolated one on 11 of 14
+     slides) and a font style the renderer must SYNTHESISE (italic/bold on a
+     face lacking that cut is generated per-run and is not reproducible — fix
+     the source to use a real face). doc-permit 2026-08-19: with two synthesised-
+     italic labels, 5 of 6 renders differed, always on that one slide; without
+     them, 6 renders gave 210/210 identical slides and exact comparison became
+     the correct oracle.
      EXCEPTION — inline Mermaid in a `.md` (no committed image): GitHub renders
      it natively, so there is NO committed artifact to go stale and fail-closed-
      red is wrong (it reds the gate over an absent optional tool). Instead the AC

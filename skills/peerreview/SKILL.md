@@ -849,6 +849,19 @@ what code does at runtime (e.g. "the reversed decode is display-only" vs "it
 changes settlement", "a negative amount steals" vs "it aborts at the encode
 assert"), **run it** in the gate environment and quote the output; both models'
 confident reasoning can be wrong at once, and only execution is authoritative.
+(3) *residual laundering* — rewording an artifact to admit a defect is not
+fixing it. When a verdict says a gate cannot detect X, "the gate now says it
+cannot detect X" is documentation, and the next verdict repeats the finding.
+Ask whether X's CAUSE is removable inside the charter's scope before reaching
+for the honest-scoping rule; that rule is for causes you do not own, which is
+why a source-fidelity residual is right — its cause lives in the reproduced
+source. (2026-08-19 doc-permit: a fidelity gate could not see visual drift
+between the committed PPTX and PDF because renders looked nondeterministic, and
+two rounds went into loosening the tolerance and then disclosing the gap. The
+cause was two labels styled italic in a face with no italic, so LibreOffice
+synthesised an oblique differently per run; dropping that one style made 6
+renders 210/210 pixel-identical and an exact oracle valid. The PEER refused
+"we disclose it" twice before the cause was looked for.)
 
 ## Step 6 — Report & push (always)
 
