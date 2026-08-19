@@ -20,12 +20,9 @@ git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: 
 cd "$repo_dir"
 
 timeout_s="${CODEX_ROUND_TIMEOUT:-1800}"
-TO_CMD=""
-if [ "$timeout_s" != "0" ]; then
-  if command -v timeout >/dev/null 2>&1; then TO_CMD="timeout $timeout_s"
-  elif command -v gtimeout >/dev/null 2>&1; then TO_CMD="gtimeout $timeout_s"
-  else printf 'peerreview: no timeout/gtimeout on PATH; running Codex unbounded.\n' >&2; fi
-fi
+# Deadline enforcement lives in one shared helper: the previous per-driver
+# fallback ran the peer UNBOUNDED whenever coreutils was absent.
+. "$script_dir/round-support.sh"
 
 add_dir_args=()
 add_dirs="${PEERREVIEW_ADD_DIRS:-${CODEX_ADD_DIRS:-}}"
@@ -74,10 +71,10 @@ else
 fi
 # shellcheck disable=SC2086
 PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" \
-  $TO_CMD codex "${exec_args[@]}" < "$prompt_input" > "$out.transcript" 2>&1 || rc=$?
+  rd_run "$timeout_s" codex "${exec_args[@]}" < "$prompt_input" > "$out.transcript" 2>&1 || rc=$?
 if [ "$round" = "--verdict" ]; then rm -f "$out.prompt"; fi
 if [ "$rc" -eq 124 ]; then
   printf 'peerreview: Codex round timed out after %ss (override: CODEX_ROUND_TIMEOUT, 0=disable).\n' "$timeout_s" >&2
 fi
-[ "$rc" -eq 0 ] || exit "$rc"
+[ "$rc" -eq 0 ] || { rd_fail "$rc" Codex "$out.transcript"; exit "$rc"; }
 [ -s "$out" ] || { printf 'peerreview: Codex returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }

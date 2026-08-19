@@ -16,12 +16,9 @@ git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: 
 cd "$repo_dir"
 
 timeout_s="${PI_ROUND_TIMEOUT:-1800}"
-TO_CMD=""
-if [ "$timeout_s" != "0" ]; then
-  if command -v timeout >/dev/null 2>&1; then TO_CMD="timeout $timeout_s"
-  elif command -v gtimeout >/dev/null 2>&1; then TO_CMD="gtimeout $timeout_s"
-  else printf 'peerreview: no timeout/gtimeout on PATH; running Pi unbounded.\n' >&2; fi
-fi
+# Deadline enforcement lives in one shared helper: the previous per-driver
+# fallback ran the peer UNBOUNDED whenever coreutils was absent.
+. "$script_dir/round-support.sh"
 
 # Keep peer sessions separate from the user's interactive Pi history. A fresh
 # round creates the latest session in this repo-specific directory; later rounds
@@ -53,9 +50,9 @@ real_git="$(command -v git)"
 
 rc=0
 # shellcheck disable=SC2086
-PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" $TO_CMD pi "${args[@]}" < "$prompt_file" > "$out" || rc=$?
+PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" rd_run "$timeout_s" pi "${args[@]}" < "$prompt_file" > "$out" || rc=$?
 if [ "$rc" -eq 124 ]; then
   printf 'peerreview: Pi round timed out after %ss (override: PI_ROUND_TIMEOUT, 0=disable).\n' "$timeout_s" >&2
 fi
-[ "$rc" -eq 0 ] || exit "$rc"
+[ "$rc" -eq 0 ] || { rd_fail "$rc" Pi "$out.transcript"; exit "$rc"; }
 [ -s "$out" ] || { printf 'peerreview: Pi returned no report.\n' >&2; exit 70; }

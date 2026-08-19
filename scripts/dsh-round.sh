@@ -35,12 +35,9 @@ task_bytes="$(/usr/bin/wc -c < "$prompt_file" | tr -d ' ')"
 }
 
 timeout_s="${DSH_ROUND_TIMEOUT:-1800}"
-TO_CMD=""
-if [ "$timeout_s" != "0" ]; then
-  if command -v timeout >/dev/null 2>&1; then TO_CMD="timeout $timeout_s"
-  elif command -v gtimeout >/dev/null 2>&1; then TO_CMD="gtimeout $timeout_s"
-  else printf 'peerreview: no timeout/gtimeout on PATH; running dsh unbounded.\n' >&2; fi
-fi
+# Deadline enforcement lives in one shared helper: the previous per-driver
+# fallback ran the peer UNBOUNDED whenever coreutils was absent.
+. "$script_dir/round-support.sh"
 
 if [ "$round" = "--verdict" ]; then
   preamble='Read-only verdict round: do not edit files and do not run mutating commands. Reading every file is allowed and expected. Return only the verdict.'
@@ -76,11 +73,11 @@ real_git="$(command -v git)"
 rc=0
 # shellcheck disable=SC2086
 PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" \
-  $TO_CMD dsh --profile headless "$task" > "$out" 2> "$out.transcript" || rc=$?
+  rd_run "$timeout_s" dsh --profile headless "$task" > "$out" 2> "$out.transcript" || rc=$?
 if [ "$rc" -eq 124 ]; then
   printf 'peerreview: dsh round timed out after %ss (override: DSH_ROUND_TIMEOUT, 0=disable).\n' "$timeout_s" >&2
 fi
-[ "$rc" -eq 0 ] || { printf 'peerreview: dsh round failed (see %s).\n' "$out.transcript" >&2; exit "$rc"; }
+[ "$rc" -eq 0 ] || { rd_fail "$rc" dsh "$out.transcript"; exit "$rc"; }
 [ -s "$out" ] || { printf 'peerreview: dsh returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }
 
 if [ "$round" = "--verdict" ]; then

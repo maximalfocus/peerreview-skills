@@ -518,6 +518,12 @@ clear baseline (`peerreview: baseline before round 1`) so each round's
 `git diff` is clean and attributable. You own all git operations for the
 entire loop. The PEER never commits or pushes.
 
+**Review on a branch; land one commit.** Round commits are review evidence, not
+product history. Unless the **Path-scoped git policy** or `--chat` applies, or
+durable intent names an OPEN PR whose head branch is already the review target,
+start the loop with `scripts/delivery-branch.sh start <repo> <slug>` and land it
+in Step 6 (standing user preference, asked on three consecutive runs 2026-08-18/19).
+
 ## Step 4 — The convergence loop
 
 **Mandatory PEER round (user durable directive, 2026-05-18).** Every
@@ -723,6 +729,17 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
 
+**Bound a round that cannot finish inside the driver deadline.** The driver
+writes `<out>` only when the round *ends*, so a killed round is total loss, not
+partial progress — and a mid-flight tree cannot be trusted (Step 4.4). When a
+first attempt overruns, or the artifact is plainly too large for one budget,
+split the round by explicit file scope, name that scope in the brief, and tell
+the PEER to report even if it has not exhausted it. Feed each later half the
+prior half's own accepted findings so the budget goes to unexplored ground.
+(2026-08-19 doc-portal-ai-platform: a 16-minute round over 13 diagrams was
+killed with 22 files edited and no report; two bounded halves each finished
+inside 15 minutes and independently rediscovered its findings.)
+
 **Non-progress abort:** if a round produces no substantive improvement against
 open findings (or oscillates), stop the loop and report — do not keep spending.
 This is the safety valve in place of a hard round cap.
@@ -858,6 +875,11 @@ Before the terminal report, always clean review-owned charter state with
 `bash ~/personal/peerreview-skills/scripts/charter-temp.sh clean "$ACTIVE_CHARTER"`
 (on convergence, required-pair failure, non-progress abort, dry-run, or error).
 A pre-existing repo-root `PROBLEM.md` is not review-owned and is never removed.
+
+On convergence, land a branch-mode review with
+`scripts/delivery-branch.sh land <repo> <slug> <msgfile>` — one squashed commit
+on the delivery branch — then push that branch and create/push the anchor tag.
+The review branch is kept locally; its round commits remain the detailed record.
 
 Then **always commit and push the reviewed repo** — every run, on
 convergence *or* non-progress abort, without asking. Push the working
