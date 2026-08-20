@@ -11,8 +11,10 @@ repo: markers are a top-level `PRD.md` **plus** a top-level `PROGRESS.md` and
 **no** `PLAN-*.md` files (the PLAN presence distinguishes CDD; evaluate this
 row after the `cdd-prd` row). This is the artifact `/idd-plan` produces for
 issue-driven products: `PRD.md` (stable requirement IDs + dependency-ordered
-delivery slices) and `PROGRESS.md` (the tracker, reconciled later from
-verified live GitHub issue/PR state).
+delivery slices) and `PROGRESS.md` (one verified implemented baseline plus
+only rows that still guide delivery, reconciled later from verified live
+state). Reconstruction compacts delivered requirements into the baseline;
+it does not recreate one tracker row per historical issue or commit.
 
 The dominant defect class is **requirement ↔ tracker drift**: a PRD
 requirement or slice that never reaches the tracker, a tracker row that
@@ -24,10 +26,12 @@ authority; the PRD is requirement authority.
 ### Lens 1 — Requirement ↔ tracker coverage closure (dominant defect class)
 
 Enumerate every stable requirement ID and every delivery slice in `PRD.md`,
-then prove a bijection with `PROGRESS.md` rows, modulo declared non-goals:
+then prove semantic closure against the tracker's declared baseline coverage
+plus current rows, modulo declared non-goals:
 
-- Every PRD requirement/slice ID MUST appear as a tracker row (or in an
-  explicit deferral/non-goal statement).
+- Every PRD requirement MUST be covered exactly once by either the implemented
+  baseline or a current slice; every PRD slice MUST have a current tracker row.
+  A reconstructed baseline is coverage, not a missing row.
 - Every PROGRESS.md row MUST trace to a PRD requirement/slice ID — a row with
   no PRD anchor is scope drift or a speculative backlog (idd-plan forbids
   speculative issue backlogs).
@@ -47,13 +51,13 @@ The tracker's status vocabulary must be explicit and its states distinct:
 - **Do not conflate lifecycle states**: partially landed ≠ landed ≠ validated
   (merged code is not release validation); post-release work must not advance
   ahead of unmet initial-release dependencies.
-- A row marked landed/done MUST carry verified evidence (an issue/PR/squash
-  reference in the documented format, e.g. `owner/repo#N`) or an explicit
-  recorded reason — never invented GitHub evidence. The offline gate checks
-  format/presence; live verification happens via `/idd-plan --reconcile` and
-  is a residual here, not a skip.
-- idd-plan greenfield rule: the repo should contain only the PRD + tracker +
-  the recommended first issue contract — a speculative backlog is a defect.
+- A terminal current row MUST carry evidence appropriate to its documented
+  lifecycle (issue/PR/squash, or an explicitly authorized non-PR transition),
+  never invented GitHub evidence. A reconstructed baseline instead carries one
+  source commit + gate result and MUST NOT be expanded into terminal history
+  rows. Live verification is still required where provider state is claimed.
+- idd-plan bootstrap rule: the repo contains only `PRD.md` + `PROGRESS.md`;
+  issue creation is a later explicit `/idd-issue` action, not a contract file.
 
 ### Lens 3 — Slice decomposition and release boundary
 
@@ -87,87 +91,115 @@ inside declared-exhaustive lists, no leaked agent wrapper tags, no
 
 Append to the charter's `## Verification` block (run every round):
 
-- **ID closure** (Lens 1) — extract IDs from PRD headings/requirement lines and
-  from PROGRESS rows, and require both directions to close:
+- **ID closure** (Lens 1) — extract defined requirement IDs and slice IDs from
+  the PRD, then require requirements to close through the explicit baseline
+  coverage line or current rows and slices to close through current rows:
 
 ```sh
 python3 - <<'EOF'
 import re, sys
-prd = open('PRD.md').read()
-prog = open('PROGRESS.md').read()
-ID = r'(?:FR|NFR|SLICE|BR|REQ)'
-# PRD authority is the DEFINING heading, not every prose mention of an ID.
-prd_ids = set(re.findall(rf'^#+\s+({ID}-[0-9]{{3}})\b', prd, re.M))
-# A tracker legitimately writes a contiguous span as `FR-003`–`FR-005`; expand it
-# (deterministic, unlike an elided list `FOO-002,003,008`, which stays a defect).
-prog_ids = set()
-for pfx, a, b in re.findall(rf'`({ID})-(\d{{3}})`\s*[–-]\s*`{ID}-(\d{{3}})`', prog):
-    prog_ids |= {f'{pfx}-{n:03d}' for n in range(int(a), int(b) + 1)}
-prog_ids |= set(re.findall(rf'\b{ID}-[0-9]{{3}}\b', prog))
-if not prd_ids: sys.exit('gate blind: no PRD requirement headings matched — fix the extractor')
-missing_in_tracker = prd_ids - prog_ids
-orphan_rows = prog_ids - prd_ids
-if missing_in_tracker: sys.exit(f'PRD IDs missing from PROGRESS: {sorted(missing_in_tracker)}')
-if orphan_rows: sys.exit(f'PROGRESS IDs without PRD anchor: {sorted(orphan_rows)}')
+prd = open('PRD.md').read(); prog = open('PROGRESS.md').read()
+REQ = r'(?:FR|NFR|BR|REQ|R)'; SLICE = r'(?:SLICE|S)'
+prd_req = set(re.findall(rf'^#+\s+({REQ}-[0-9]{{3}})\b', prd, re.M))
+prd_slice = set(re.findall(rf'^#+\s+({SLICE}-[0-9]{{3}})\b', prd, re.M))
+prd_slice |= set(re.findall(rf'^\|\s*`?({SLICE}-[0-9]{{3}})`?(?:\s+—[^|]*)?\s*\|', prd, re.M))
+if not prd_req: sys.exit('gate blind: no PRD requirement headings matched')
+
+# Coverage authority is only the explicit baseline Coverage line, a table's
+# Requirement(s) column, or a requirement-ID first cell. Incidental prose in
+# acceptance/notes must not mask a missing assignment. Expand explicit ranges.
+parts = [l for l in prog.splitlines() if re.match(r'^- Coverage:', l)]
+req_cols = []
+for line in prog.splitlines():
+    if not line.lstrip().startswith('|'):
+        req_cols = []; continue
+    if re.match(r'^\|[\s\-:|]+\|$', line): continue
+    cells = [c.strip() for c in line.strip().strip('|').split('|')]
+    headers = [c.strip('*` ').lower() for c in cells]
+    if any(c in {'requirement', 'requirements'} for c in headers):
+        req_cols = [i for i, c in enumerate(headers) if c in {'requirement', 'requirements'}]
+        continue
+    if cells and re.match(rf'^`?{REQ}-[0-9]{{3}}\b', cells[0]): parts.append(cells[0])
+    parts.extend(cells[i] for i in req_cols if i < len(cells))
+surface = '\n'.join(parts)
+prog_req = set(re.findall(rf'\b{REQ}-[0-9]{{3}}\b', surface))
+for pfx, a, b in re.findall(rf'`?({REQ})-(\d{{3}})`?\s*[–-]\s*`?\1-(\d{{3}})`?', surface):
+    prog_req |= {f'{pfx}-{n:03d}' for n in range(int(a), int(b) + 1)}
+prog_slice = set(re.findall(rf'^\|\s*`?({SLICE}-[0-9]{{3}})`?(?:\s+—[^|]*)?\s*\|', prog, re.M))
+if prog_req != prd_req:
+    sys.exit(f'requirement closure: missing={sorted(prd_req-prog_req)} orphan={sorted(prog_req-prd_req)}')
+if prog_slice != prd_slice:
+    sys.exit(f'slice closure: missing={sorted(prd_slice-prog_slice)} orphan={sorted(prog_slice-prd_slice)}')
 EOF
 ```
 
-  Both refinements are load-bearing, not cosmetic. Matching every prose mention on
-  the PRD side, and not expanding ranges on the tracker side, fail-closes on a
-  conformant artifact: measured 2026-08-15 across the five repos of this profile,
-  the unfixed gate false-positives on three — `ArchSift contract` (`FR-004`),
-  `cloud-sandbox-prd` (`NFR-007`), and `reservation-bola-demo-prd` (**18**
-  spurious "missing" IDs). The blind guard matters because heading-authority
-  silently matches nothing on a PRD that does not use `### FR-0NN` headings, which
-  would green the gate instead of reddening it. Mutation-test after any edit here:
-  dropping a defined ID and adding an undefined one must both fail, and so must
-  shrinking a range — but only where that ID is reachable *solely* through the
-  range. Where it also appears literally in another row, closure genuinely still
-  holds and passing is correct (`docscan-prd` behaves that way).
+  The authority surfaces and range expansion are load-bearing. Whole-file ID
+  extraction false-positived on three of five legacy repos in 2026-08; accepting
+  incidental row prose later false-passed a dropped compact-baseline requirement
+  because a slice's re-verification text repeated its ID. Mutation-test both
+  shapes: dropped/orphan requirement, dropped slice, and a range interior reachable
+  only through that range must fail. The current gate passes the compact
+  `idd-skills contract` shape plus five legacy row-shaped repos.
 
-- **Status vocabulary** (Lens 2) — every status cell belongs to the declared
-  set; a status value outside it fails:
-
-```sh
-# declared set lives in PRD.md or PROGRESS.md; example set below — pin to the repo's own declaration
-python3 - <<'EOF'
-import re, sys
-s = open('PROGRESS.md').read()
-vocab = {'pending','active','landed','validated','done','reviewed','blocked','deferred','planned'}
-# extract the Status cell (2nd) of each data row; skip separator rows AND the header row
-for i, line in enumerate(s.splitlines(), 1):
-    if line.lstrip().startswith('|') and not re.match(r'^\|[\s\-:|]+\|$', line):
-        cells = [c.strip() for c in line.strip().strip('|').split('|')]
-        if len(cells) >= 3 and cells[1].lower() not in vocab and cells[1].lower() != 'status':
-            sys.exit(f'PROGRESS.md:{i} unknown status: {cells[1]}')
-EOF
-```
-
-  (Adjust the vocabulary regex to the repo's declared set at charter time; the
-  point is a closed set, not this exact list.)
-
-- **Evidence-link presence** (Lens 2) — rows whose status means "done" must
-  carry an evidence reference (link matching `#\d+` or `owner/repo#N`) or an
-  explicit exception marker; absence fails:
+- **Status vocabulary** (Lens 2) — locate the `Status` column from the table
+  header (its position is not fixed), derive the closed vocabulary from the
+  artifact's status-semantics bullets, and reject undeclared values:
 
 ```sh
 python3 - <<'EOF'
 import re, sys
 s = open('PROGRESS.md').read()
-done_status = {'landed','done','validated'}
-req_id = re.compile(r'^(?:FR|NFR|SLICE|BR|REQ)-[0-9]{3}\b', re.I)
+section = re.search(r'^## [^\n]*Status[^\n]*\n(.*?)(?=^## |\Z)', s, re.M | re.S | re.I)
+if not section: sys.exit('gate blind: no status-semantics section')
+vocab = {x.rstrip(':').lower() for x in re.findall(r'^- \*\*([^*]+)\*\*', section.group(1), re.M)}
+for chain in re.findall(r'`([^`]*→[^`]*)`', section.group(1)):
+    vocab |= {x.strip().lower() for x in chain.split('→')}
+vocab |= {x.lower() for x in re.findall(r'^\|\s*`([^`]+)`\s*\|', section.group(1), re.M)}
+if not vocab: sys.exit('gate blind: no declared status vocabulary')
+status_col = None; checked = 0
 for i, line in enumerate(s.splitlines(), 1):
-    if line.lstrip().startswith('|'):
-        cells = [c.strip() for c in line.strip().strip('|').split('|')]
-        if len(cells) >= 2 and req_id.match(cells[0]) and cells[1].lower() in done_status:
-            row = ' '.join(cells).lower()
-            if not re.search(r'#\d+|/pull/\d+|reconcile', row):
-                sys.exit(f'PROGRESS.md:{i} done-status requirement row without evidence link')
+    if not line.lstrip().startswith('|'):
+        status_col = None
+        continue
+    if re.match(r'^\|[\s\-:|]+\|$', line): continue
+    cells = [c.strip() for c in line.strip().strip('|').split('|')]
+    if 'Status' in cells:
+        status_col = cells.index('Status'); continue
+    if status_col is not None:
+        value = cells[status_col].strip('*` ').rstrip(':').lower() if len(cells) > status_col else '<missing>'
+        if value not in vocab: sys.exit(f'PROGRESS.md:{i} unknown status: {value}')
+        checked += 1
+if not checked: sys.exit('gate blind: no tracker rows checked through a Status column')
 EOF
 ```
 
-  (Artifact rows — PRD, naming, tracker — are exempt: only requirement/slice rows
-  need evidence links; their completion is recorded in Notes.)
+  The three vocabulary forms cover current IDD trackers: bold bullets, an inline
+  arrow chain, or a status-definition table. Unknown values and an unrecognised
+  shape fail closed.
+
+- **Terminal evidence presence** (Lens 2) — adapt to the declared table shape:
+  terminal current rows require provider evidence or an explicit authorized
+  non-PR transition marker; compact reconstructed baselines require Source,
+  Verification, and Acceptance fields instead of historical rows. Do not use
+  a fixed status-column index or require an issue/PR for a contract-authorized
+  transition.
+
+```sh
+python3 - <<'EOF'
+import re, sys
+s = open('PROGRESS.md').read()
+if '## Implemented baseline' in s:
+    for field in ('Coverage:', 'Source:', 'Verification:', 'Acceptance:'):
+        if not re.search(rf'^- {field}\s*\S', s, re.M):
+            sys.exit(f'implemented baseline missing {field}')
+# Project-specific charter code locates the Status column as above, then for
+# each terminal current row requires either provider evidence (#N, /pull/N,
+# commit URL/SHA) or the PRD-authorized non-PR transition evidence it names.
+EOF
+```
+
+  Legacy artifact rows (PRD, naming, tracker) are exempt from provider-link rules;
+  compact baselines use the four explicit evidence fields instead of rows.
 
 - The standard prose-spec amendments from `/peerreview` Step 2 and the
   `cdd-prd` module apply unchanged: leaked-tag grep, `^\|`-anchored TBD/TODO
@@ -187,10 +219,11 @@ EOF
 
 ## Forecast hint
 
-IDD PRD repos are small (2 files, PRD + tracker). Forecast 1–2 rounds. Round 1
-surfaces the ID-closure and status-semantics class; the neutral verdict round
-reliably surfaces cross-reference errors and semantic self-contradictions in
-the slice/status wording (the same verdict-gate behavior as cdd-prd repos).
+IDD PRD repos are small (2 files), but file count does not bound semantic depth.
+Forecast 1–2 rounds for lifecycle-only row trackers; reconstructed baselines or
+publication/history-authority transitions require bounded sequential scopes and
+may take materially more. Round 1 usually surfaces ID/status drift; neutral
+verdicts surface cross-reference, authority, and slice-order contradictions.
 Evidence: TraceHeist contract 2026-08-12 — the repo fell to `prose-spec` because no
 idd profile existed (cdd-prd requires PLAN files), and the closure lens that
 matters for an issue-driven repo (requirement IDs ↔ tracker rows ↔ issue
