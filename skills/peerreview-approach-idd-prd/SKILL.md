@@ -29,9 +29,9 @@ Enumerate every stable requirement ID and every delivery slice in `PRD.md`,
 then prove semantic closure against the tracker's declared baseline coverage
 plus current rows, modulo declared non-goals:
 
-- Every PRD requirement MUST be covered exactly once by either the implemented
-  baseline or a current slice; every PRD slice MUST have a current tracker row.
-  A reconstructed baseline is coverage, not a missing row.
+- Every PRD requirement and slice MUST be covered exactly once by either the
+  implemented baseline or a current slice row. A reconstructed baseline is
+  coverage, not missing rows.
 - Every PROGRESS.md row MUST trace to a PRD requirement/slice ID — a row with
   no PRD anchor is scope drift or a speculative backlog (idd-plan forbids
   speculative issue backlogs).
@@ -93,7 +93,8 @@ Append to the charter's `## Verification` block (run every round):
 
 - **ID closure** (Lens 1) — extract defined requirement IDs and slice IDs from
   the PRD, then require requirements to close through the explicit baseline
-  coverage line or current rows and slices to close through current rows:
+  coverage line or current rows and slices to close through the explicit
+  baseline delivered-slices line or current rows:
 
 ```sh
 python3 - <<'EOF'
@@ -125,7 +126,14 @@ surface = '\n'.join(parts)
 prog_req = set(re.findall(rf'\b{REQ}-[0-9]{{3}}\b', surface))
 for pfx, a, b in re.findall(rf'`?({REQ})-(\d{{3}})`?\s*[–-]\s*`?\1-(\d{{3}})`?', surface):
     prog_req |= {f'{pfx}-{n:03d}' for n in range(int(a), int(b) + 1)}
-prog_slice = set(re.findall(rf'^\|\s*`?({SLICE}-[0-9]{{3}})`?(?:\s+—[^|]*)?\s*\|', prog, re.M))
+baseline = re.search(r'^## Implemented baseline\s*\n(.*?)(?=^## |\Z)', prog, re.M | re.S)
+slice_parts = ([l for l in baseline.group(1).splitlines()
+                if re.match(r'^- Delivered slices:', l)] if baseline else [])
+slice_parts += re.findall(rf'^\|\s*`?({SLICE}-[0-9]{{3}})`?(?:\s+—[^|]*)?\s*\|', prog, re.M)
+slice_surface = '\n'.join(slice_parts)
+prog_slice = set(re.findall(rf'\b{SLICE}-[0-9]{{3}}\b', slice_surface))
+for pfx, a, b in re.findall(rf'`?({SLICE})-(\d{{3}})`?\s*[–-]\s*`?\1-(\d{{3}})`?', slice_surface):
+    prog_slice |= {f'{pfx}-{n:03d}' for n in range(int(a), int(b) + 1)}
 if prog_req != prd_req:
     sys.exit(f'requirement closure: missing={sorted(prd_req-prog_req)} orphan={sorted(prog_req-prd_req)}')
 if prog_slice != prd_slice:
@@ -138,8 +146,8 @@ EOF
   incidental row prose later false-passed a dropped compact-baseline requirement
   because a slice's re-verification text repeated its ID. Mutation-test both
   shapes: dropped/orphan requirement, dropped slice, and a range interior reachable
-  only through that range must fail. The current gate passes the compact
-  `idd-skills contract` shape plus five legacy row-shaped repos.
+  only through that range must fail. For a compact baseline, `Delivered slices:`
+  is slice authority; legacy row-shaped trackers continue to use slice rows.
 
 - **Status vocabulary** (Lens 2) — locate the `Status` column from the table
   header (its position is not fixed), derive the closed vocabulary from the
