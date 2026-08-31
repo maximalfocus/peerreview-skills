@@ -266,7 +266,18 @@ security surface, blast radius), produce:
   reference-closure (every flag/term/identifier referenced is defined in its
   declared "complete"/"exhaustive" contract table) and cross-section
   consistency (exit codes ↔ output ↔ business rules do not contradict);
-  treat any "etc." inside a declared-exhaustive list as a defect. When the
+  treat any "etc." inside a declared-exhaustive list as a defect. A spec that
+  declares its own **acceptance gate** gets one more check: name the producer of
+  the evidence that gate consumes. "Not yet collected" is the normal state of a
+  greenfield PRD and is not a finding; **no producer that could ever collect it**
+  is — such a gate can neither pass nor fail, so the release boundary it defines
+  is unreachable while the artifact reads as complete. Before concluding none
+  exists, look past the source the artifact assumed to the *consumers* of the
+  same evidence. (waypoint-prd 2026-08-29: acceptance demanded a zero-tolerance
+  per-bar comparison against action strings the upstream platform does not export
+  at all, making the release gate unfalsifiable; the downstream consumer was
+  already receiving those exact payloads, which also settled a chart-timeframe
+  assumption the artifact carried as unverified.) When the
   artifact is *derived* from a converged upstream spec (PLAN from PRD, design
   from requirements, test-plan from spec), add **upstream→downstream coverage
   closure** as a first-class lens: enumerate every upstream behavior/flag and
