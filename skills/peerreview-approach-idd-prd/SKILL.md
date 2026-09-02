@@ -1,6 +1,6 @@
 ---
 name: peerreview-approach-idd-prd
-description: "Peer-review lenses for IDD `{project}-prd/` repos — PRD requirement/slice-ID ↔ PROGRESS.md tracker closure, tracker status semantics, invented-evidence detection, public/private boundary"
+description: "Peer-review lenses for IDD `{project}-prd/` repos — PRD requirement/slice-ID ↔ PROGRESS.md tracker closure, tracker status semantics, invented-evidence detection, public/private boundary, reconstruction fidelity to a named source commit"
 disable-model-invocation: true
 ---
 
@@ -19,7 +19,10 @@ it does not recreate one tracker row per historical issue or commit.
 The dominant defect class is **requirement ↔ tracker drift**: a PRD
 requirement or slice that never reaches the tracker, a tracker row that
 invents evidence, or statuses that overclaim completion. GitHub is lifecycle
-authority; the PRD is requirement authority.
+authority; the PRD is requirement authority. **Exception — when the baseline
+names a source commit, the artifact describes an external tree and the dominant
+class shifts to descriptive infidelity; Lens 6 governs and composes the
+`evidence-docs` module.**
 
 ## Brief the PEER with these lenses
 
@@ -86,6 +89,40 @@ The generic prose-spec lenses still apply: internal cross-reference
 consistency (every "section N" / ID reference resolves), no `TBD`/`TODO`/`etc.`
 inside declared-exhaustive lists, no leaked agent wrapper tags, no
 `[[wikilink]]` refs, markdown link integrity.
+
+### Lens 6 — Reconstruction fidelity (only when the tracker names a source commit)
+
+Activates when the baseline carries a `- Source:` commit resolvable in the sibling
+implementation repo. The artifact then describes an **external** tree, so Lenses 1–5 —
+all internal closure — structurally cannot see the dominant defect: a requirement
+describing behaviour the source does not have. Compose the `evidence-docs` lenses and
+brief the PEER with the ground-truth root, the commit, and read access
+(`PEERREVIEW_ADD_DIRS`); a peer given only the repo dir reviews prose consistency and
+misses the entire class. Check against the commit, never the working tree:
+
+- Every requirement describes behaviour the source exhibits. Re-read load-bearing
+  specifics at the cited file — exit codes, env-var names, script arguments, defaults,
+  caps, tier order — never accept them from the artifact's prose.
+- No rationale attributes intent the repository never states (reconstruct mode requires
+  silence where the source is silent). A requirement recording an explicit *user*
+  decision must say so, or it reads as source-derived and is unfalsifiable.
+- Ground-truth → artifact completeness: enumerate `git ls-tree -r --name-only <commit>`
+  and confirm each file is covered by a requirement or an explicit non-goal.
+  Citation-checking alone never catches an omission.
+- A defect found **in the source** is reported, never edited — it is ground truth here,
+  not the artifact. Record it against the requirement that owns it, or the tracker
+  acquires rows with no PRD anchor (Lens 1).
+
+If the commit or the sibling is not resolvable locally, say so and record a residual —
+never fail the review closed on an artifact you cannot check.
+
+The self-serving risk is structural: the reconstruction and its own "gates green" claim
+usually come from one model. (reconstructed methodology PRD 2026-09-02: a Claude Code HOST
+reconstructed its own methodology repo and declared its hand-run gates green; the tier-1
+Codex round found 13 requirement overclaims — among them "the guard denies every
+mutating subcommand" when `git-guard.sh` is a denylist that forwards `git update-index`,
+and a validator described at a third of its real surface. Every error ran in the
+author's favour. 7 of 10 existing idd-prd repos name no source commit and are inert.)
 
 ## Verification gate amendments
 
@@ -208,6 +245,13 @@ EOF
 
   Legacy artifact rows (PRD, naming, tracker) are exempt from provider-link rules;
   compact baselines use the four explicit evidence fields instead of rows.
+
+- **Source-commit binding** (Lens 6) — when the baseline names a `- Source:` commit,
+  assert it is a real commit in the sibling *and* the one the review is bound to; scope
+  the baseline-field search to the baseline section, since a whole-file search also
+  accepts fields moved elsewhere. Then re-run the source repo's own gate at that commit
+  in a detached worktree, scrubbing inherited peer/add-dir variables first, so the
+  baseline's Verification claim is verified rather than quoted.
 
 - The standard prose-spec amendments from `/peerreview` Step 2 and the
   `cdd-prd` module apply unchanged: leaked-tag grep, `^\|`-anchored TBD/TODO
