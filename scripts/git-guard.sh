@@ -4,11 +4,27 @@
 # Then run the peer CLI with the guard first on PATH and these env vars set:
 #   PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$(command -v git)" \
 #   PEERREVIEW_PROTECTED_REPO="$(cd <repo> && pwd -P)" <peer-cli> ...
-# The wrapper denies every git mutation whose resolved target is the protected
-# checkout's git state, while allowing fixture repos elsewhere.
+# Inside the protected checkout the wrapper permits only an explicitly declared
+# read-only set and denies everything else, so a subcommand nobody enumerated
+# fails closed instead of being forwarded. Outside it, nothing is restricted:
+# fixture repos elsewhere stay fully writable.
+#
+# Scope: this mediates git invoked as `git` through this PATH shim. It is defence
+# in depth against an ERRANT co-editor, not a sandbox against a determined one,
+# which can call the binary by absolute path; the peer CLI's own sandbox and the
+# HOST's gate re-run remain the controls for that case. Do not describe this as
+# complete Git mediation.
 set -euo pipefail
 
 protected_repo="${1:?protected_repo}"
+# Resolve to a PHYSICAL path. The wrapper compares `pwd -P`-resolved targets
+# against this value, so a logical path — macOS $TMPDIR is /var/folders/... with
+# /var symlinked to /private/var — would match nothing and the guard would
+# silently protect NOTHING while still appearing installed. Fail loudly instead.
+protected_repo="$(cd "$protected_repo" 2>/dev/null && pwd -P)" || {
+  printf 'peerreview: git-guard: protected repo path does not exist: %s\n' "$1" >&2
+  exit 66
+}
 guard_dir="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-git-guard.XXXXXX")"
 real_git="$(command -v git)"
 cat > "$guard_dir/git" <<'GUARD'
@@ -109,14 +125,39 @@ case "$resolved_cwd" in "$protected_repo"|"$protected_repo"/*) protected=1 ;; es
 [ -n "${GIT_INDEX_FILE:-}" ] && protect_git_dir "$GIT_INDEX_FILE"
 [ -n "${GIT_CONFIG_GLOBAL:-${GIT_CONFIG:-}}" ] && protect_git_dir "${GIT_CONFIG_GLOBAL:-$GIT_CONFIG}"
 [ -n "${GIT_CONFIG_SYSTEM:-}" ] && protect_git_dir "$GIT_CONFIG_SYSTEM"
-case "$cmd" in
-  add|am|apply|bisect|branch|checkout|cherry-pick|clean|clone|commit|config|fast-import|fetch|filter-branch|gc|init|merge|mv|notes|pull|push|rebase|remote|replace|reset|restore|revert|rm|stash|submodule|switch|symbolic-ref|tag|update-ref|worktree)
-    if [ "$protected" -eq 1 ]; then
-      printf 'peerreview: PEER git mutation denied in reviewed repo: git %s\n' "$cmd" >&2
-      exit 77
-    fi
-    ;;
-esac
+# Deny by default inside the protected checkout. An enumerated DENYlist forwarded
+# every subcommand nobody thought of — including plumbing. That mattered because
+# `git update-index --assume-unchanged <path>` removes a real on-disk modification
+# from BOTH `git status` and `git diff HEAD`, the two commands the HOST re-verifies
+# each round with, so an errant co-editor's edit could pass that audit unseen.
+if [ "$protected" -eq 1 ]; then
+  allowed=0
+  case "$cmd" in
+    # No subcommand at all (`git --version`, `git --help`, `git --exec-path`):
+    # these inspect the installation, never the repository.
+    "") allowed=1 ;;
+    blame|cat-file|check-ignore|describe) allowed=1 ;;
+    diff|diff-files|diff-index|diff-tree) allowed=1 ;;
+    for-each-ref|grep|help|log) allowed=1 ;;
+    ls-files|ls-tree|merge-base|name-rev) allowed=1 ;;
+    rev-list|rev-parse|shortlog|show|show-ref) allowed=1 ;;
+    status|var|version|whatchanged) allowed=1 ;;
+    config)
+      # `git config` both reads and writes; permit only its read forms, so
+      # `--get x` passes while `x value` (and every --file/--global write
+      # redirected at the protected repo) is denied.
+      for arg in "$@"; do
+        case "$arg" in
+          --get|--get-all|--get-regexp|--get-urlmatch|--list|-l) allowed=1 ;;
+        esac
+      done
+      ;;
+  esac
+  if [ "$allowed" -ne 1 ]; then
+    printf 'peerreview: PEER git mutation denied in reviewed repo: git %s\n' "${cmd:-<no subcommand>}" >&2
+    exit 77
+  fi
+fi
 exec "$real_git" "$@"
 GUARD
 chmod +x "$guard_dir/git"

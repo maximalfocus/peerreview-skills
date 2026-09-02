@@ -227,4 +227,104 @@ if CODEX_FAKE_RC=42 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$t
 if CODEX_FAKE_EMPTY=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex-empty.out" 1 >/dev/null 2>&1; then fail "empty Codex report was accepted"; fi
 if PATH=/usr/bin:/bin "$root/scripts/peer-auth.sh" codex >/dev/null 2>&1; then fail "missing Codex CLI was accepted"; fi
 
+# --- git-guard: deny by default inside the protected checkout (issue #3) -------
+# The guard used to decide by an enumerated DENYlist, so any subcommand nobody
+# listed was forwarded. That mattered because `git update-index
+# --assume-unchanged <path>` removes a real modification from BOTH `git status`
+# and `git diff HEAD` — the two commands the HOST re-verifies a round with — so an
+# errant co-editor's edit could pass that audit unseen. These assertions drive the
+# guard directly rather than through a fake peer.
+mkdir -p "$tmp/guarded" "$tmp/guard-fixture"
+# Physical paths: the guard resolves a command's target with `pwd -P` and compares
+# it against this argument, so a logical path (macOS $TMPDIR is a symlink into
+# /private) never matches and the guard silently protects nothing. The drivers
+# pass `$(pwd -P)` for the same reason.
+guard_repo="$(cd "$tmp/guarded" && pwd -P)"
+guard_fixture="$(cd "$tmp/guard-fixture" && pwd -P)"
+git -C "$guard_repo" init -q
+git -C "$guard_repo" config user.email test@example.invalid
+git -C "$guard_repo" config user.name Test
+printf 'original\n' > "$guard_repo/file.txt"
+git -C "$guard_repo" add file.txt
+git -C "$guard_repo" commit -qm base
+# Capture the real git BEFORE putting the guard on PATH; resolving it afterwards
+# yields the guard itself and it re-executes recursively.
+guard_real_git="$(command -v git)"
+guard_dir="$(bash "$root/scripts/git-guard.sh" "$guard_repo")"
+bash -n "$guard_dir/git" || fail "generated git guard is not valid shell"
+# Export inside the subshell rather than using an assignment PREFIX: bash resolves
+# the command name with the PATH in effect before a prefix assignment, so
+# `PATH="$guard_dir:$PATH" git ...` would run the real git and bypass the guard.
+g() {
+  (
+    cd "$guard_repo" || exit 1
+    export PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$guard_real_git" \
+           PEERREVIEW_PROTECTED_REPO="$guard_repo"
+    "$@" >/dev/null 2>&1
+  )
+}
+# `|| rc=$?` keeps the suite's `set -e` from aborting on the expected non-zero exit.
+denied()  { local rc=0; g "$@" || rc=$?; [ "$rc" -eq 77 ] || fail "guard forwarded a mutation: $* (rc=$rc)"; }
+allowed() { local rc=0; g "$@" || rc=$?; [ "$rc" -eq 0 ] || fail "guard denied a read-only command: $* (rc=$rc)"; }
+
+# Mutating porcelain, unlisted plumbing, and an unknown subcommand all fail closed.
+for sub in "update-index --refresh" "hash-object -w file.txt" "write-tree" "read-tree HEAD" \
+           "mktree" "checkout-index -a" "reflog expire --all" "repack -d" "prune" \
+           "add file.txt" "commit -m x" "stash" "symbolic-ref HEAD" "notafunction"; do
+  # shellcheck disable=SC2086
+  denied git $sub
+done
+
+# Regression pin: the modification stays visible to both HOST audit commands.
+printf 'peer edit\n' > "$guard_repo/file.txt"
+denied git update-index --assume-unchanged file.txt
+[ -n "$(git -C "$guard_repo" status --porcelain)" ] || fail "guard let a peer hide an edit from git status"
+[ -n "$(git -C "$guard_repo" diff HEAD)" ] || fail "guard let a peer hide an edit from git diff HEAD"
+git -C "$guard_repo" checkout -q -- file.txt
+
+# Read-only inspection the PEER legitimately needs still works.
+for sub in "status --porcelain" "diff" "log --oneline -1" "show --stat HEAD" "ls-files" \
+           "ls-tree HEAD" "rev-parse HEAD" "cat-file -p HEAD" "blame file.txt" \
+           "grep original" "for-each-ref" "merge-base HEAD HEAD" "describe --always" \
+           "rev-list -1 HEAD" "show-ref --head" "--version"; do
+  # shellcheck disable=SC2086
+  allowed git $sub
+done
+
+# `git config` splits inside one subcommand: reads pass, writes do not.
+allowed git config --get user.name
+allowed git config --list
+denied  git config user.name peer-evil
+denied  git config --unset user.name
+
+# Outside the protected checkout the guard restricts nothing.
+g git -C "$guard_fixture" init -q || fail "guard blocked a fixture repo init"
+g git -C "$guard_fixture" config user.email test@example.invalid || fail "guard blocked a fixture config write"
+g git -C "$guard_fixture" commit --allow-empty -qm fixture || fail "guard blocked a fixture commit"
+
+# Redirection battery still denies when it targets the protected checkout.
+denied env GIT_DIR="$guard_repo/.git" GIT_WORK_TREE="$guard_repo" git -C "$guard_fixture" commit --allow-empty -m evil
+denied env GIT_CONFIG_GLOBAL="$guard_repo/.git/config" git -C "$guard_fixture" config --global remote.origin.url https://evil.example/x
+denied env GIT_INDEX_FILE="$guard_repo/.git/index" git -C "$guard_fixture" add -A
+denied git -C "$guard_fixture" config --file "$guard_repo/.git/config" remote.origin.url https://evil.example/x
+denied git -C "$guard_fixture" init --separate-git-dir "$guard_repo/.git/peer-sep" "$tmp/guard-sep"
+
+# A guard installed with a LOGICAL path must still protect: it resolves its own
+# argument, so a symlinked parent cannot turn the guard into a no-op.
+ln -s "$guard_repo" "$tmp/guarded-link"
+guard_link_dir="$(bash "$root/scripts/git-guard.sh" "$tmp/guarded-link")"
+link_rc=0
+( cd "$guard_repo" || exit 1
+  export PATH="$guard_link_dir:$PATH" PEERREVIEW_REAL_GIT="$guard_real_git" \
+         PEERREVIEW_PROTECTED_REPO="$guard_repo"
+  git commit --allow-empty -m via-symlinked-guard >/dev/null 2>&1 ) || link_rc=$?
+[ "$link_rc" -eq 77 ] || fail "guard installed with a logical path protected nothing (rc=$link_rc)"
+rm -rf "$guard_link_dir"
+if bash "$root/scripts/git-guard.sh" "$tmp/no-such-repo" >/dev/null 2>&1; then
+  fail "git-guard accepted a nonexistent protected repo"
+fi
+
+[ -z "$(git -C "$guard_repo" status --porcelain)" ] || fail "guard assertions left the protected repo dirty"
+rm -rf "$guard_dir"
+
 printf 'PASS: round drivers\n'
