@@ -22,8 +22,12 @@ case "${1:-}" in
       echo "refusing to clean missing chat-review workspace: $dir" >&2
       exit 2
     }
+    # Compare like with like: `pwd -P` resolves symlinks, and on macOS $TMPDIR
+    # is /var/... while its physical path is /private/var/..., so an unresolved
+    # $root never matches and the guard refuses every workspace `new` created.
+    root_p=$(cd "$root" 2>/dev/null && pwd -P) || root_p=$root
     case "$resolved" in
-      "$root"/peerreview-chat.*) ;;
+      "$root_p"/peerreview-chat.*|"$root"/peerreview-chat.*) ;;
       *) echo "refusing to clean non-peerreview chat path: $resolved" >&2; exit 2 ;;
     esac
     if [[ ! -f "$resolved/.peerreview-chat-owned" || -L "$resolved/.peerreview-chat-owned" ]]; then
