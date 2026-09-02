@@ -75,10 +75,12 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   prefix on the PR title — that breaks N-2 instead.
 - **Private material.** This repository is private today; the rule is
   prospective, because a leak recorded now survives into any later publication.
-  Never name `reconstructed methodology PRD`, one of its documents, or one of its
-  sections in a branch, commit, issue, or PR. A requirement or slice identifier
-  (`R-###`, `S-###`, `SLICE-###`, `FR-###`, `NFR-###`) is forbidden only when it
-  is defined *solely* in that private companion. `S-###`/`FR-###` exist only
+  Never name the private companion product-contract repository (this project's
+  `{project}-prd` sibling), one of its documents, or one of its sections in a
+  branch, commit, issue, or PR — not even in order to say what must not be
+  named. A requirement or slice identifier
+  (`R-###`, `S-###`, `SLICE-###`, `FR-###`, `NFR-###`) is forbidden only where
+  it is defined *solely* in that companion. `S-###`/`FR-###` are defined only
   there. Never rely on a history rewrite as cleanup — commits survive in
   provider-retained PR refs, and issue/PR text is provider metadata outside git
   entirely.
