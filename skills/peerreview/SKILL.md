@@ -404,9 +404,8 @@ security surface, blast radius), produce:
   (`feat/scanner-002`), not idiomatic digits embedded in a word (`e2e`, `s3`,
   `oauth2`). A branch-hygiene gate must tokenize on `/_-` and flag only an
   all-digit token, never the `2` inside `e2e`; do not "fix" `test/e2e` by
-  renaming it. (Re-derived two ways same day: 3d-soft-engine renamed it to
-  `test/end-to-end`, cgfs narrowed the gate — settle as: keep `test/e2e`,
-  narrow the gate.)
+  renaming it. (Re-derived twice same day — 3d-soft-engine renamed it to
+  `test/end-to-end`, cgfs narrowed the gate; settle as: keep `test/e2e`.)
   (d) when the charter's **verification gate is itself the deliverable infra**
   (a self-authored ADR/boundary-rule or golden-file charter whose gate greps/
   parses the artifact), the gate is a self-serving artifact too — Codex will
@@ -417,9 +416,15 @@ security surface, blast radius), produce:
   use full-identifier-boundary token matches (not substring/`\b`-on-digits),
   parse structured formats with a real parser (PyYAML/JSON, not regex), and
   require paired/path-correct fields — instead of patching one regex per round.
-  Reactive per-regex patching invites the next paranoia level each verdict and
-  burns ~3 extra rounds (raytracer-architecture 2026-05-31: rounds 4–6 each
-  fixed one regex before a round-6 full sweep converged immediately).
+  Reactive per-regex patching invites the next paranoia level and burns ~3
+  rounds (raytracer-architecture 2026-05-31: a round-6 sweep converged at once).
+  Two false-NEGATIVE hazards are worse than a false pass, because they
+  manufacture findings: `producer | grep -q P` under `set -o pipefail` returns
+  141 on a MATCH (grep exits early, producer takes SIGPIPE) — spool the producer
+  to a file and grep that; and an assertion carrying its own copy of a quotation
+  compares the gate to the source of truth with the artifact out of the loop —
+  extract each claim FROM the artifact and verify THAT against the source, which
+  is (c-ter)'s complement, not its opposite. (idd-naming-standard 2026-09-02.)
   **When the deliverable is mechanically reconstructible from its source** (a
   transcription/port/faithful-copy whose body is the source content verbatim
   under a fixed authored header — e.g. a doc2md xlsx→md whose every table line is
