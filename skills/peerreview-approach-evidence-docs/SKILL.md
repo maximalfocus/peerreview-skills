@@ -108,6 +108,20 @@ profile.)
   strings match `path:line` patterns and false-positive the gate (love-
   portal2-infra 2026-07-06: 6 baseline false-fails, all WebSEAL domains/proxy
   IPs; Step 0.5 self-test caught them).
+  **Extract the LEADING path token from a cited span, not the whole span.** The
+  claim-dense citations are usage spans (`scripts/git-guard.sh <protected_repo>`),
+  and whole-span matching skips every one of them in silence — the gate reports a
+  confident PASS over the paths it never looked at. A cited path that resolves in
+  NO root is then exempted by **explicit literal with a stated reason** (an artefact
+  of a *reviewed* repo; a file a non-goal says was removed, whose absence is the
+  requirement) — never by loosening the matcher, so a typo'd or invented path still
+  fails. Classify every glob: an **asserting** glob names a shipped family and must
+  resolve to its full member set (above); a **pattern** glob quotes a marker the
+  source merely tests for (`PLAN-*.md`) and must NOT be required to resolve; an
+  unclassified glob fails closed. (reconstructed methodology PRD 2026-09-02: 6 of 12 cited
+  scripts were unchecked until tokenised, and the first attempt to also cover
+  top-level paths false-failed on `INDEX.md`/`PATTERNS.md`, which a non-goal
+  records as deliberately deleted.)
 - **Evidence-glob family coverage (known sets, not ≥1 match):** when an
   evidence token is a glob over a file family with a known member set
   (per-variant compose overlays, per-platform scripts, cert bundles),
