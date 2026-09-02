@@ -7,9 +7,10 @@ A cross-model co-editing **peer-review gate** for skill-generated repos.
 Skill workflows (cdd, system, tutorial, present, …) produce repos whose
 artifacts are "believed done" but never adversarially checked against the
 problem they were meant to solve. `/peerreview` closes that gap: the HOST acts
-as reviewer/manager and the fixed independent pair co-edits (Pi/DeepSeek host →
-Codex CLI peer; Codex CLI host → Pi/DeepSeek peer) until a fresh active review
-charter is objectively satisfied and verification is green.
+as reviewer/manager and an independent **cross-vendor** PEER co-edits until a fresh
+active review charter is objectively satisfied and verification is green. The PEER is
+resolved mechanically, never chosen in prose: tier 1 is Claude Code ↔ the Codex CLI;
+tier 2 is a disclosed degradation reached only when no tier-1 peer is reachable.
 
 ## How it works
 
@@ -19,13 +20,16 @@ charter is objectively satisfied and verification is green.
   without routine confirmation, but stops if durable intent is absent or conflicts.
 - `/peerreview` reads the active charter **adversarially**, works out a review plan
   and a *round forecast* (transparency only), then loops:
-  HOST reviews → PEER co-edits (`scripts/pi-round.sh` or
-  `scripts/codex-round.sh`) → HOST re-verifies the real diff and re-runs the
-  gate → commit the round. Pi is pinned to the `deepseek` API-key provider;
-  Codex CLI must use an OpenAI ChatGPT subscription (`codex login`).
-- **Fail closed.** If either required side is missing, unauthenticated,
-  quota-blocked, or returns no report, the review stops—there is no third CLI or
-  same-HOST substitute.
+  HOST reviews → PEER co-edits (the driver `scripts/select-peer.sh` resolves:
+  `claude-round.sh`, `codex-round.sh`, `pi-round.sh`, or `dsh-round.sh`) → HOST
+  re-verifies the real diff and re-runs the gate → commit the round. Each side has
+  its own auth contract: a Claude subscription, an OpenAI ChatGPT subscription
+  (`codex login`), Pi on the `deepseek` API-key provider, `DEEPSEEK_API_KEY` for `dsh`.
+- **Fail closed.** If no cross-vendor peer is reachable, or the resolved one is
+  unauthenticated, quota-blocked, or returns no report, the review stops. **The PEER
+  vendor is never the HOST vendor** — a same-vendor pass is a degraded review, not a
+  peer review — so there is no same-vendor substitute and a DeepSeek HOST has no
+  tier-2 fallback.
 - **Convergence, not a round cap, is the stop condition.** Successful reviews
   create annotated `peerreview/converged/*` tag checkpoints. Later reviews use
   anchor→HEAD plus impact closure unless risk requires a full-tree pass.
@@ -43,15 +47,20 @@ peerreview-skills/
 ├── skills/peerreview-evolve/SKILL.md   ← the /peerreview-evolve methodology filter
 ├── skills/peerreview-approach-*/       ← per-artifact review-lens modules (Read-loaded)
 ├── templates/PROBLEM.md                ← the active review-charter schema
-├── scripts/pi-round.sh                 ← Pi/DeepSeek co-edit + verdict driver
-├── scripts/codex-round.sh              ← Codex CLI co-edit + verdict driver
+├── scripts/claude-round.sh             ← Claude Code co-edit + verdict driver (tier 1)
+├── scripts/codex-round.sh              ← Codex CLI co-edit + verdict driver (tier 1)
+├── scripts/pi-round.sh                 ← Pi/DeepSeek co-edit + verdict driver (tier 2)
+├── scripts/dsh-round.sh                ← DeepSeek Harness driver (tier 2, CDD repos)
+├── scripts/round-support.sh            ← portable per-round deadline + failure tail
 ├── scripts/git-guard.sh                ← shared PEER git-mutation guard
-├── scripts/peer-auth.sh                ← credential-safe fixed-pair preflight
+├── scripts/delivery-branch.sh          ← review-on-a-branch, landed as one commit
+├── scripts/chat-review-temp.sh         ← ephemeral `--chat` workspace lifecycle
+├── scripts/peer-auth.sh                ← credential-safe per-side auth preflight
 ├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
 ├── scripts/charter-temp.sh             ← private active-charter lifecycle
 ├── scripts/review-anchor.sh            ← durable convergence-tag checkpoints
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
-├── tests/round-drivers.sh              ← fixed-pair driver smoke tests
+├── tests/round-drivers.sh              ← peer routing, driver, and guard smoke tests
 └── README.md
 ```
 
@@ -70,30 +79,34 @@ converged repo.
 
 ## Install
 
-The fixed pair is **Pi (DeepSeek API key) ↔ Codex CLI (OpenAI ChatGPT
-subscription)**; `/peerreview` runs as HOST inside either and fails closed
-anywhere else (Claude Code can still load the skill, but `select-peer.sh`
-rejects it as an unsupported HOST). Symlink the same source skills into each
-side's skill directory.
+`/peerreview` runs as HOST inside Claude Code, the Codex CLI, Pi, or the DeepSeek
+Harness, and resolves its PEER mechanically with `scripts/select-peer.sh`. Tier 1 is
+**Claude Code (Claude subscription) ↔ Codex CLI (OpenAI ChatGPT subscription)**. Tier 2
+is reached only when no tier-1 peer is authenticated and reachable, and is `dsh` for
+CDD-harnessed repositories and Pi for every other repository; it is a disclosed
+degradation, named in the terminal report. The PEER vendor is never the HOST vendor.
 
-### Pi
+Install the skills for each side you intend to run `/peerreview` **as HOST**. A side
+used only as a PEER needs its CLI and authentication, not the skills — every driver
+carries the whole brief in the round prompt.
 
-Pi is the DeepSeek API-key side of the pair: select a DeepSeek model provider
-(API key present, e.g. via `DEEPSEEK_API_KEY`), then symlink the same source
-skills:
+### Claude Code — tier 1
+
+Sign in with a Claude subscription (`claude auth login`; raw API-key auth is not this
+contract), then symlink the source skills:
 
 ```sh
-ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.pi/agent/skills/peerreview
-ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.pi/agent/skills/peerreview-evolve
+ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.claude/skills/peerreview
+ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.claude/skills/peerreview-evolve
 ```
 
-Restart Pi after installation so it rebuilds the skill index.
+The approach modules are `Read`-loaded by absolute repository path, so they need no
+symlink of their own.
 
-### Codex CLI
+### Codex CLI — tier 1
 
-The Codex CLI is the OpenAI-subscription side of the pair: log in with
-`codex login` (ChatGPT subscription — API-key auth is not this contract), then
-symlink the same source skills:
+Log in with `codex login` (ChatGPT subscription — API-key auth is not this contract),
+then symlink the same source skills:
 
 ```sh
 ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.codex/skills/peerreview
@@ -101,6 +114,26 @@ ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.codex/skills/peer
 ```
 
 Restart Codex after installation so it rebuilds the skill index.
+
+### Pi — tier 2
+
+Select a DeepSeek model provider (API key present, e.g. via `DEEPSEEK_API_KEY`), then
+symlink the same source skills:
+
+```sh
+ln -s ~/personal/peerreview-skills/skills/peerreview        ~/.pi/agent/skills/peerreview
+ln -s ~/personal/peerreview-skills/skills/peerreview-evolve ~/.pi/agent/skills/peerreview-evolve
+```
+
+Restart Pi after installation so it rebuilds the skill index. A Pi HOST must be on
+`PI_PROVIDER=deepseek`, because that pins the vendor the peer ladder resolves against.
+
+### DeepSeek Harness (`dsh`) — tier 2
+
+The tier-2 peer for CDD-harnessed repositories. As a PEER it needs no skill
+installation: `dsh-round.sh` has no session resume and passes the complete brief on
+argv every round. It requires `DEEPSEEK_API_KEY` and a headless profile that composes
+offline (`dsh --profile headless --dump-config`).
 
 ## Producer integration
 
