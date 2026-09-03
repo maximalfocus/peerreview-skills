@@ -61,6 +61,7 @@ peerreview-skills/
 ├── scripts/review-anchor.sh            ← durable convergence-tag checkpoints
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
 ├── tests/round-drivers.sh              ← peer routing, driver, and guard smoke tests
+├── LICENSE                             ← MIT
 └── README.md
 ```
 
@@ -73,9 +74,9 @@ session traces (Pi: `$TMPDIR/peerreview-pi-sessions/`; Codex CLI:
 adopted this constitution.)
 
 Reviewed repos under `~/projects` are left **uncommitted and unpushed** for
-manual verification on a Windows machine (see `skills/peerreview/SKILL.md` →
-*Path-scoped git policy*); elsewhere `/peerreview` commits and pushes the
-converged repo.
+manual verification on another machine (see `skills/peerreview/SKILL.md` →
+*Path-scoped git policy*, and *Author-specific conventions* below); elsewhere
+`/peerreview` commits and pushes the converged repo.
 
 ## Install
 
@@ -89,6 +90,39 @@ degradation, named in the terminal report. The PEER vendor is never the HOST ven
 Install the skills for each side you intend to run `/peerreview` **as HOST**. A side
 used only as a PEER needs its CLI and authentication, not the skills — every driver
 carries the whole brief in the round prompt.
+
+### Checkout location — the installation contract
+
+Clone this repository to **`~/personal/peerreview-skills`**. The skill files name
+their own checkout by that absolute path (`~/personal/peerreview-skills/scripts/…`,
+the `Read`-loaded approach modules, `CONSTITUTION.md`) because a HOST resolves a
+symlinked skill through the symlink, so a path relative to the skill file would not
+reach `scripts/` or `templates/`. The path is the contract, not an assumption about
+any particular machine: to keep the checkout elsewhere, rewrite it once after cloning
+and keep the rewrite when you pull:
+
+```sh
+git grep -l '~/personal/peerreview-skills' -- skills CLAUDE.md CONSTITUTION.md README.md \
+  | xargs perl -pi -e 's|~/personal/peerreview-skills|/your/path/peerreview-skills|g'
+```
+
+### Author-specific conventions
+
+Two conventions in the skill files come from the author's setup. Neither is required
+to run `/peerreview`; each is named here so a reader can tell contract from habit.
+
+- **Path-scoped git policy (`~/projects`).** Repositories under `~/projects` are
+  reviewed without any git write, because the author verifies and commits them by
+  hand on another machine. If you have no such directory the policy never triggers;
+  if you want the same behaviour for a different directory, edit the *Path-scoped git
+  policy* section of `skills/peerreview/SKILL.md`.
+- **Sibling checkouts under `~/personal/`.** The `cdd-*` profiles render a progress map
+  from `~/personal/cdd-skills`, the `knowledge-artifacts` profile reads the format
+  contract from `~/personal/knowledge-skills` when available, and the `cdd-prd` profile
+  looks for a reviewed project's siblings as `~/personal/{project}-*`. These are the
+  author's sibling checkouts; without them those profile-specific steps are unavailable
+  and a review of such a repository must say so in its report. All other profiles are
+  unaffected.
 
 ### Claude Code — tier 1
 
@@ -143,3 +177,7 @@ charter. A legacy producer-authored root `PROBLEM.md` remains a valid durable
 input and is never removed. `/peerreview` is **user-initiated only** — producers
 suggest it rather than auto-invoking it. The sole exception is explicit `/cdd-auto`,
 whose invocation authorizes mandatory per-wave calls to the canonical skill.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
