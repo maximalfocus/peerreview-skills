@@ -905,9 +905,10 @@ Before the terminal report, always clean review-owned charter state with
 (on convergence, required-pair failure, non-progress abort, dry-run, or error).
 A pre-existing repo-root `PROBLEM.md` is not review-owned and is never removed.
 
-On convergence, land a branch-mode review with
-`scripts/delivery-branch.sh land <repo> <slug> <msgfile>` — one squashed commit
-on the delivery branch — then push that branch and create/push the anchor tag.
+On convergence, land a branch-mode review with `scripts/delivery-branch.sh
+land <repo> <slug> <msgfile>` — one squashed commit on the delivery branch
+whose first non-blank line `land` preflights as the N-4 subject — then push
+that branch and create/push the anchor tag.
 The review branch is kept locally; its round commits remain the detailed record.
 
 Then **always commit and push the reviewed repo** — every run, on

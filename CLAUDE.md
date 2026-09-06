@@ -70,12 +70,19 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   here: `scripts/delivery-branch.sh land` squashes **locally**
   (`git merge --squash` + `git commit -F <msgfile>`), so no provider derives a
   subject from a PR title and N-4 holds with nothing to work around. The
-  msgfile's first line IS the landed subject — write it as
+  msgfile's first non-blank line IS the landed subject (git's `whitespace`
+  cleanup drops leading blanks) — write it as
   `<type>(<scope>)?: <lowercase imperative>`, at most 72 characters, with the
   round-by-round evidence in the body. That commit lands in the **reviewed**
   repository, so the type must come from *that* repository's `Types:`
   vocabulary (`AGENTS.md`, else `CLAUDE.md`) when it declares one; a reviewed
-  repo declaring none is unconstrained. If a review ever lands through
+  repo declaring none is unconstrained, and so is one whose declaration the
+  parser cannot read.
+  `land` **preflights all of that before touching git** (Article 5), so a bad
+  subject costs a re-run, never a half-landed review. What it deliberately does
+  not check is whether the description reads as an imperative — no script can,
+  so that half of N-4 stays a rule you follow rather than one you are stopped
+  by. If a review ever lands through
   `gh pr merge --squash` instead, pass `--subject` explicitly rather than
   accepting the provider's untyped default, and never put a type prefix on the
   PR title — that breaks N-2 instead.
