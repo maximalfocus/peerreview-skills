@@ -306,26 +306,23 @@ security surface, blast radius), produce:
   distinctive issue anchor, and mutation-test at least one internal-title
   parenthetical.
   (c-ter) an executable closure gate must **pin its expected unit cardinality to
-  the source-of-truth** (the charter's declared count/range, e.g. `001..036`),
-  never derive it from the artifact under test — a check like
-  `expected = range(1, len(items)+1)` is self-consistent under whole-unit
-  add/drop at the contiguous boundary, so it silently passes a roadmap with an
-  appended `037` or a truncated tail (missing `036`). Mutation-test the boundary
-  (drop the last unit; append one past the end) at baseline. (raytracing-in-one-
-  weekend 2026-06-06: Codex R1 caught exactly this — gate derived the range from
-  `len(nums)`, blind to append/truncate; fixed by pinning `EXPECTED=36`.)
-  **Pin only a count that is genuinely enumerable from the source-of-truth**
-  (chapters, spec sections, declared `001..N`). When the unit count is instead a
-  *decomposition choice* the source does NOT dictate — e.g. how many issues a
-  tutorial chapter splits into — pinning it is itself artifact-derived and
-  OVERFITS: it wrongly fails a legitimate future re-split (one issue → two). There,
-  keep the numbering check to the pure invariant (unique, contiguous `001..N`, N
-  free) and put whole-unit coverage on the **concept/dependency closure** (every
-  source chapter's concepts present + correctly ordered), which catches dropping a
-  *meaningful* unit regardless of count. (rasterization-a-practical-implementation
-  2026-06-06: pinning `EXPECTED=16` on a tutorial roadmap was the right reflex but
-  wrong target — Codex's verdict flagged the overfit; reverted to contiguity-only +
-  AC1 concept-closure, which already fails a dropped capstone.)
+  the source-of-truth**, never derive it from the artifact under test — a check
+  like `expected = range(1, len(items)+1)` is self-consistent under whole-unit
+  add/drop at the contiguous boundary, so it silently passes an appended `037` or
+  a truncated tail. Mutation-test the boundary (drop the last unit; append one
+  past the end) at baseline. But **pin only a count the source genuinely
+  enumerates** (chapters, spec sections, declared `001..N`). When the count is a
+  *decomposition choice* the source does NOT dictate — how many issues a chapter
+  splits into — pinning it is itself artifact-derived and OVERFITS, wrongly
+  failing a legitimate re-split (one issue → two). There, keep numbering to the
+  pure invariant (unique, contiguous `001..N`, N free) and put whole-unit coverage
+  on the **concept/dependency closure** (every source chapter's concepts present +
+  correctly ordered), which catches dropping a *meaningful* unit regardless of
+  count. (raytracing-in-one-weekend 2026-06-06: gate derived the range from
+  `len(nums)`, blind to append/truncate → pinned `EXPECTED=36`. rasterization
+  2026-06-06: `EXPECTED=16` on a roadmap was the right reflex, wrong target —
+  Codex flagged the overfit; reverted to contiguity + concept-closure, which
+  already fails a dropped capstone.)
   **A substring concept-sentinel must be a token NOT contained in an umbrella
   term present elsewhere** — e.g. `"encod"` is a substring of `"bEncoding"`, so a
   `bencode-encode` sentinel of `"encod"` matches every issue merely mentioning
@@ -360,11 +357,10 @@ security surface, blast radius), produce:
   section-drop exhaustively, never a sample** — a round that *adds* forward-ref
   documentation can mask OTHER concepts, so a self-test that checked only the one
   concept it was hardening (round 1: bencode) misses the regression it just
-  introduced. (bittorrent-client 2026-06-06 re-run: the owed-Codex degraded pass
-  swept all 19 drops and found 5 torrent-phase blind spots
-  [pieces-blocks/torrent-setup/torrent-io/torrent-verify/torrent-create] that
-  round 1's forward-ref annotations had created and its sampled self-test missed;
-  branch-slug anchoring fixed all five.) The same masking applies to **section-
+  introduced. (bittorrent-client 2026-06-06 re-run: sweeping all 19 drops found 5
+  torrent-phase blind spots that round 1's forward-ref annotations had created and
+  its sampled self-test missed; branch-slug anchoring fixed all five.) The same
+  masking applies to **section-
   specific prose sentinels** (Migration Notes, Residuals, Versions `Why` cells):
   bound the search to the intended section, never the whole artifact, or later
   issue lines can satisfy a prose requirement by forward reference.
@@ -381,11 +377,9 @@ security surface, blast radius), produce:
   branches still match) must keep a **context anchor**, or it reintroduces
   masking — e.g. a bare `client-downloads = "download" in title` is satisfied by
   a Program entry-point issue's "create/seed/download a torrent" CLI verb;
-  exclude the program/entry-point title. (bittorrent-client 2026-06-06
-  cross-vendor: the owed Codex pass drove this over 4 rounds — branch-only →
-  `(title∧branch)` → `feat/peer-` prefix → `## Phase` header → union; R4 fixed
-  the relaxed-predicate masking regression. Two prior degraded same-vendor passes
-  missed the whole family.)
+  exclude the program/entry-point title. (bittorrent-client 2026-06-06: driven
+  over 4 rounds, branch-only → union; R4 fixed the relaxed-predicate masking
+  regression. Two prior same-vendor passes missed the whole family.)
   (c-quater) when a tutorial roadmap **includes the AWS deploy phase** (a
   deployable artifact), the gate must verify the deploy issues are **contained
   within the Deploy phase block** (between its header and the next header / EOF)
@@ -399,13 +393,12 @@ security surface, blast radius), produce:
   sweep — adding it for article phases but not the deploy phase costs a verdict
   round each. (3d-soft-engine 2026-06-06: e2e-before-cicd ordering, deploy-issue
   containment, and the author-vs-execute split were the round 2–4 findings.)
-  The deploy e2e issue's conventional branch is `test/e2e` and is **valid** — the
-  IDD "no numbers in branch names" rule bans *issue-number* tokens
-  (`feat/scanner-002`), not idiomatic digits embedded in a word (`e2e`, `s3`,
-  `oauth2`). A branch-hygiene gate must tokenize on `/_-` and flag only an
-  all-digit token, never the `2` inside `e2e`; do not "fix" `test/e2e` by
-  renaming it. (Re-derived twice same day — 3d-soft-engine renamed it to
-  `test/end-to-end`, cgfs narrowed the gate; settle as: keep `test/e2e`.)
+  The deploy e2e issue's branch `test/e2e` is **valid**: the IDD "no numbers in
+  branch names" rule bans *issue-number* tokens (`feat/scanner-002`), not digits
+  inside a word (`e2e`, `s3`, `oauth2`). A branch-hygiene gate must tokenize on
+  `/_-` and flag only an all-digit token; never "fix" `test/e2e` by renaming it.
+  (Re-derived twice on 2026-06-06 — 3d-soft-engine renamed it, cgfs narrowed the
+  gate; settled: keep `test/e2e`.)
   (d) when the charter's **verification gate is itself the deliverable infra**
   (a self-authored ADR/boundary-rule or golden-file charter whose gate greps/
   parses the artifact), the gate is a self-serving artifact too — Codex will
@@ -878,6 +871,13 @@ cause was two labels styled italic in a face with no italic, so LibreOffice
 synthesised an oblique differently per run; dropping that one style made 6
 renders 210/210 pixel-identical and an exact oracle valid. The PEER refused
 "we disclose it" twice before the cause was looked for.)
+(4) *the source is more than its prose* — "the statement doesn't say" is only
+irreducible after checking the source's NON-prose surfaces (starter code,
+skeletons, TODOs, fixtures), which often carry the intent the prose omits — but
+they lose wherever the prose speaks. (2026-09-06 build-an-oauth-2.0-server: a
+residual said the exercise never states what STATUS reports after revoking a
+never-issued token; its starter's `mark this token inactive (if known)` made it
+a real defect, while that starter's own UNKNOWN print lost to the statement.)
 
 ## Step 6 — Report & push (always)
 
