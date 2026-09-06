@@ -252,66 +252,58 @@ security surface, blast radius), produce:
   (macOS arm64 artifacts later failed in Linux, including a whole reused binary;
   `make clean test` fixed it, once `clean` also removed `bminor`/`scanner.c`).
   **Process-level performance gates need their own deadline:** checking elapsed
-  only after child exit hangs on regressions. Set the subprocess timeout to the
-  budget, map timeout to budget failure, then validate exit/output/cardinality
-  before accepting elapsed success; mutation-test timeout, non-zero, malformed
-  output, and non-finite budgets. (ArchSift NFR-005, 2026-08-07.) **For
-  multi-process/container smoke gates, a producer artifact or running status
-  proves only producer readiness:** wait for the consumer's post-init control
-  state, then repeat cold starts to expose races. (agent-sandbox PR #51:
-  the shared CA predated agent `OUTPUT DROP`, causing 2/3 false failures.)
-  Prose-spec repos
-  (PRD/charter/design docs, no code): the dominant defect class is internal
-  cross-reference inconsistency, not code correctness — gate on
-  reference-closure (every flag/term/identifier referenced is defined in its
-  declared "complete"/"exhaustive" contract table) and cross-section
-  consistency (exit codes ↔ output ↔ business rules do not contradict);
-  treat any "etc." inside a declared-exhaustive list as a defect. A spec that
-  declares its own **acceptance gate** gets one more check: name the producer of
-  the evidence that gate consumes. "Not yet collected" is the normal state of a
-  greenfield PRD and is not a finding; **no producer that could ever collect it**
-  is — such a gate can neither pass nor fail, so the release boundary it defines
-  is unreachable while the artifact reads as complete. Before concluding none
-  exists, look past the source the artifact assumed to the *consumers* of the
-  same evidence. (waypoint-prd 2026-08-29: acceptance demanded a zero-tolerance
-  per-bar comparison against action strings the upstream platform does not export
-  at all, making the release gate unfalsifiable; the downstream consumer was
+  only after child exit hangs on regressions. Set the subprocess timeout to the budget,
+  map timeout to budget failure, then validate exit/output/cardinality before accepting
+  elapsed success; mutation-test timeout, non-zero, malformed output, and non-finite
+  budgets. (ArchSift NFR-005, 2026-08-07.) **For multi-process/container smoke gates, a
+  producer artifact or running status proves only producer readiness:** wait for the
+  consumer's post-init control state, then repeat cold starts to expose races.
+  (agent-sandbox PR #51: the shared CA predated agent `OUTPUT DROP`, causing 2/3 false
+  failures.) Prose-spec repos (PRD/charter/design docs, no code): the dominant defect
+  class is internal cross-reference inconsistency, not code correctness — gate on
+  reference-closure (every flag/term/identifier referenced is defined in its declared
+  "complete"/"exhaustive" contract table) and cross-section consistency (exit codes ↔
+  output ↔ business rules do not contradict); treat any "etc." inside a
+  declared-exhaustive list as a defect. A spec that declares its own **acceptance gate**
+  gets one more check: name the producer of the evidence that gate consumes. "Not yet
+  collected" is the normal state of a greenfield PRD and is not a finding; **no producer
+  that could ever collect it** is — such a gate can neither pass nor fail, so the
+  release boundary it defines is unreachable while the artifact reads as complete.
+  Before concluding none exists, look past the source the artifact assumed to the
+  *consumers* of the same evidence. (waypoint-prd 2026-08-29: acceptance demanded a
+  zero-tolerance per-bar comparison against action strings the upstream platform does
+  not export at all, making the release gate unfalsifiable; the downstream consumer was
   already receiving those exact payloads, which also settled a chart-timeframe
-  assumption the artifact carried as unverified.) When the
-  artifact is *derived* from a converged upstream spec (PLAN from PRD, design
-  from requirements, test-plan from spec), add **upstream→downstream coverage
-  closure** as a first-class lens: enumerate every upstream behavior/flag and
-  confirm each maps to exactly one downstream unit (or an explicit
-  non-goal), and that no downstream unit lacks an upstream origin — an
+  assumption the artifact carried as unverified.) When the artifact is *derived* from a
+  converged upstream spec (PLAN from PRD, design from requirements, test-plan from
+  spec), add **upstream→downstream coverage closure** as a first-class lens: enumerate
+  every upstream behavior/flag and confirm each maps to exactly one downstream unit (or
+  an explicit non-goal), and that no downstream unit lacks an upstream origin — an
   unmapped upstream behavior is the dominant defect class there, not internal
-  inconsistency. For derived **golden-file / test suites** specifically:
-  (a) reconstruct closure as an *executable* gate script (reuse the authoring
-  validators) and run it at baseline — a self-authored coverage doc is not
-  evidence until a script confirms disk ⇔ doc bijection; (b) if the suite
-  ships its own coverage/trace artifact, gate that it enumerates every
-  downstream unit **individually** — grouped/abbreviated IDs
-  (`FOO-002,003,008`) silently defeat machine closure and are a defect;
-  (c) recompute every pure/`function` expected value from the upstream
-  algorithm rather than only checking it parses.
-  (c-bis) for a **tutorial-roadmap `PLAN.md`** (planning-stage, derived from a
-  book/web TOC, no code yet) the coverage-closure lens is the right and
-  sufficient frame, but a gate parsing `- [ ] NNN — <title> (<branch>)` lines
-  must (1) capture the **LAST** `()` group as the branch — titles legitimately
-  carry their own `(...)`/`§` source pointers — and (2) tolerate a trailing
-  `← current` marker (`(?:\s*←.*)?$`); both are quirks of every `/tutorial`
-  PLAN.md and were independently re-derived across three runs (now codified).
-  The same title-parenthetical tolerance applies to concept-closure sentinels:
-  don't key on one exact contiguous title string when a harmless parenthetical
-  annotation would split it; use bounded/non-greedy phrase predicates or a
-  distinctive issue anchor, and mutation-test at least one internal-title
-  parenthetical.
-  (c-ter) an executable closure gate must **pin its expected unit cardinality to
-  the source-of-truth**, never derive it from the artifact under test — a check
-  like `expected = range(1, len(items)+1)` is self-consistent under whole-unit
-  add/drop at the contiguous boundary, so it silently passes an appended `037` or
-  a truncated tail. Mutation-test the boundary (drop the last unit; append one
-  past the end) at baseline. But **pin only a count the source genuinely
-  enumerates** (chapters, spec sections, declared `001..N`). When the count is a
+  inconsistency. For derived **golden-file / test suites** specifically: (a) reconstruct
+  closure as an *executable* gate script (reuse the authoring validators) and run it at
+  baseline — a self-authored coverage doc is not evidence until a script confirms disk ⇔
+  doc bijection; (b) if the suite ships its own coverage/trace artifact, gate that it
+  enumerates every downstream unit **individually** — grouped/abbreviated IDs
+  (`FOO-002,003,008`) silently defeat machine closure and are a defect; (c) recompute
+  every pure/`function` expected value from the upstream algorithm rather than only
+  checking it parses. (c-bis) for a **tutorial-roadmap `PLAN.md`** (planning-stage,
+  derived from a book/web TOC, no code yet) the coverage-closure lens is the right and
+  sufficient frame, but a gate parsing `- [ ] NNN — <title> (<branch>)` lines must (1)
+  capture the **LAST** `()` group as the branch — titles legitimately carry their own
+  `(...)`/`§` source pointers — and (2) tolerate a trailing `← current` marker
+  (`(?:\s*←.*)?$`); both are quirks of every `/tutorial` PLAN.md and were independently
+  re-derived across three runs (now codified). The same title-parenthetical tolerance
+  applies to concept-closure sentinels: don't key on one exact contiguous title string
+  when a harmless parenthetical annotation would split it; use bounded/non-greedy phrase
+  predicates or a distinctive issue anchor, and mutation-test at least one
+  internal-title parenthetical. (c-ter) an executable closure gate must **pin its
+  expected unit cardinality to the source-of-truth**, never derive it from the artifact
+  under test — a check like `expected = range(1, len(items)+1)` is self-consistent under
+  whole-unit add/drop at the contiguous boundary, so it silently passes an appended
+  `037` or a truncated tail. Mutation-test the boundary (drop the last unit; append one
+  past the end) at baseline. But **pin only a count the source genuinely enumerates**
+  (chapters, spec sections, declared `001..N`). When the count is a
   *decomposition choice* the source does NOT dictate — how many issues a chapter
   splits into — pinning it is itself artifact-derived and OVERFITS, wrongly
   failing a legitimate re-split (one issue → two). There, keep numbering to the
@@ -451,67 +443,66 @@ security surface, blast radius), produce:
   (`at ≤ validBefore` in whole seconds) is realized over a finer-clock store (a
   Redis ms-wall-clock TTL), the golden runs at the COARSE grain and passes with
   *either* formula, so it is blind to the sub-unit gap. `EXPIREAT validBefore`
-  expires at the START of the boundary second → an in-window replay at
-  `validBefore.5 s` is wrongly re-accepted (a sub-unit replay hole); the faithful
-  impl needs `+1` (absolute `EXPIREAT validBefore+1`) to cover the fractional final
-  unit. Settle by EXECUTION against the real clock and check EACH layer's grain —
-  distinct from the `<`-vs-`≤` strictness axis above. (x402-architecture 2026-07-12:
-  the nonce-TTL `+1` was wrongly refuted by the degraded pass AND cross-vendor
-  round 1 — both "settled it via the golden" — then reversed over 3 rounds once the
-  seconds→ms gap was derived by execution against `nonce-store.ts` + `middleware`'s
-  verify→window→replay order.) And when an ADR-WORDING fix lands, **sweep the citing conformance
-  suite's DESCRIPTIONS/metadata for prose echoing the OLD wording** — the
-  faithful numeric goldens stay correct while their descriptions go stale, a
-  cross-repo contradiction the next verdict catches. A STATUS promotion is the
-  same hazard from a different angle: when an ADR is promoted `Proposed→Accepted`
-  by an **acceptance/demo artifact** rather than a conformance golden (the
-  minority path), sweep the repo's OWN prose for the baked-in conformance-only
-  assumption — the lazy-promotion rule sentence ("once a `*-conformance` golden
-  cites it"), a "Pinned by (**conformance**)" index-column header, and the
-  charter's AC "Current state" snapshot all silently misclassify the
-  acceptance-pinned ADR. The promoting skill typically de-stales the ADR body +
-  its one index row and misses these; check them in ONE round. (2026-06-16
-  lrucache-architecture: `/cdd-acceptance` promoted ADR-0008 via the demo but
-  left the README lazy-promotion prose + column qualifier conformance-only and
-  the charter "Current state" claiming it still `Proposed`.) The **metric/counting
-  model** is the highest-yield re-derive target and a conflation in it drains one
-  instance per round if patched piecemeal: when a counting term is ambiguous (a
-  "probe" defined as "compute + access" = 2/position vs the goldens'/impl's
-  one-probe-per-position), the same wording is usually seeded UPSTREAM (PRD) and
-  inherited by the ADR + PLAN + diagram, so fix EVERY repo's statement of it in ONE
-  round AND re-derive the term's DEFINITION so it covers all ops — a definition that
-  fits `add`/`mightContain` (one access/position) can still be wrong for `remove`
-  (read + write/position, yet still one probe). And a **diagram's worked-example
-  COMPUTED values** (hash positions, set bits, indices) are a self-serving artifact
-  like any golden — re-derive them against the pinned algorithm + the citing golden,
-  never trust the drawn numbers. (2026-06-16 bloomfilter-architecture: the structure
-  diagram had FABRICATED, degenerate bit positions for `add("apple"/"banana")` — the
-  author never computed FNV-1a — replaced with the conformance OPS-004 fixture; and
-  the probe-counting model was "compute + touch"=2k across PRD/PLAN/ADR/diagram,
-  drained over 3 verdict rounds before a family-wide one-round sweep converged it.)
-  The promotion-staleness sweep also covers the **ADR's OWN `## Related`/body prose**:
-  a `Proposed` ADR whose body asserts it in the past tense ("**Promoted to `Accepted`
-  by …**") self-contradicts its Status line — re-tense to "to be promoted" (2026-06-16
-  semaphore-architecture: ADR-0009 `Proposed` but its `## Related` said "Promoted to
-  Accepted by /cdd-acceptance"). **Missing-ADR discriminator (qualifies the "real PRD
-  decision with NO ADR is a gap" lens):** a PRD NFR routed to "ADR + review" / "ADR" is
-  NOT a missing-ADR gap when it has (a) no citing conformance golden AND (b) no real
-  trade-off (e.g. `O(1)` for a counter + FIFO queue — inherent, not surprising). Such an
-  NFR is **review-only**; an ADR for it would be a perpetually-uncited non-decision (it
-  could never lazily promote). The fix is to tighten the PRD/PLAN/coverage wording "ADR"
-  → "code review" across every restating site (reconcile-ALL), NOT to add the ADR.
-  Contrast a complexity NFR the suite DOES test via a metric/visit-count golden
-  (bptree/merge-iterator): there the ADR is real and cited. (2026-06-16
-  semaphore-architecture: Codex flagged "PRD routes complexity/space to ADR but none
-  exists" — resolved by the wording sweep, not a new ADR.) **An architecture repo ships
-  DELIVERABLE infra — the `rules/{impl}-boundaries.yaml` an impl's lint runner loads — so
-  the architecture review MUST run the leaked-`</content>`-wrapper-tag sweep AND parse
-  every shipped YAML/JSON with a REAL loader (`yaml.safe_load`/`json.load`), not an
-  ADR-section-lint or a text-compare. A `Write`-leaked tag passes the section-lint and a
-  text-compare yet breaks `yaml.safe_load`, shipping a boundaries.yaml the lint runner
-  can't load. (2026-06-17 semaphore-architecture CONVERGED with a leaked tag in all 10
-  ADRs + the boundaries.yaml — `yaml.safe_load` failed — because its lint never parsed the
-  YAML; only the downstream `semaphore-conformance` Lens-7 upstream-parse caught it ~90 min
+  expires at the START of the boundary second → an in-window replay at `validBefore.5 s`
+  is wrongly re-accepted (a sub-unit replay hole); the faithful impl needs `+1`
+  (absolute `EXPIREAT validBefore+1`) to cover the fractional final unit. Settle by
+  EXECUTION against the real clock and check EACH layer's grain — distinct from the
+  `<`-vs-`≤` strictness axis above. (x402-architecture 2026-07-12: the nonce-TTL `+1`
+  was wrongly refuted by the degraded pass AND cross-vendor round 1 — both "settled it
+  via the golden" — then reversed over 3 rounds once the seconds→ms gap was derived by
+  execution against `nonce-store.ts` + `middleware`'s verify→window→replay order.) And
+  when an ADR-WORDING fix lands, **sweep the citing conformance suite's
+  DESCRIPTIONS/metadata for prose echoing the OLD wording** — the faithful numeric
+  goldens stay correct while their descriptions go stale, a cross-repo contradiction the
+  next verdict catches. A STATUS promotion is the same hazard from a different angle:
+  when an ADR is promoted `Proposed→Accepted` by an **acceptance/demo artifact** rather
+  than a conformance golden (the minority path), sweep the repo's OWN prose for the
+  baked-in conformance-only assumption — the lazy-promotion rule sentence ("once a
+  `*-conformance` golden cites it"), a "Pinned by (**conformance**)" index-column
+  header, and the charter's AC "Current state" snapshot all silently misclassify the
+  acceptance-pinned ADR. The promoting skill typically de-stales the ADR body + its one
+  index row and misses these; check them in ONE round. (2026-06-16
+  lrucache-architecture: `/cdd-acceptance` promoted ADR-0008 via the demo but left the
+  README lazy-promotion prose + column qualifier conformance-only and the charter
+  "Current state" claiming it still `Proposed`.) The **metric/counting model** is the
+  highest-yield re-derive target and a conflation in it drains one instance per round if
+  patched piecemeal: when a counting term is ambiguous (a "probe" defined as "compute +
+  access" = 2/position vs the goldens'/impl's one-probe-per-position), the same wording
+  is usually seeded UPSTREAM (PRD) and inherited by the ADR + PLAN + diagram, so fix
+  EVERY repo's statement of it in ONE round AND re-derive the term's DEFINITION so it
+  covers all ops — a definition that fits `add`/`mightContain` (one access/position) can
+  still be wrong for `remove` (read + write/position, yet still one probe). And a
+  **diagram's worked-example COMPUTED values** (hash positions, set bits, indices) are a
+  self-serving artifact like any golden — re-derive them against the pinned algorithm +
+  the citing golden, never trust the drawn numbers. (2026-06-16
+  bloomfilter-architecture: the structure diagram had FABRICATED, degenerate bit
+  positions for `add("apple"/"banana")` — the author never computed FNV-1a — replaced
+  with the conformance OPS-004 fixture; and the probe-counting model was "compute +
+  touch"=2k across PRD/PLAN/ADR/diagram, drained over 3 verdict rounds before a
+  family-wide one-round sweep converged it.) The promotion-staleness sweep also covers
+  the **ADR's OWN `## Related`/body prose**: a `Proposed` ADR whose body asserts it in
+  the past tense ("**Promoted to `Accepted` by …**") self-contradicts its Status line —
+  re-tense to "to be promoted" (2026-06-16 semaphore-architecture: ADR-0009 `Proposed`
+  but its `## Related` said "Promoted to Accepted by /cdd-acceptance"). **Missing-ADR
+  discriminator (qualifies the "real PRD decision with NO ADR is a gap" lens):** a PRD
+  NFR routed to "ADR + review" / "ADR" is NOT a missing-ADR gap when it has (a) no
+  citing conformance golden AND (b) no real trade-off (e.g. `O(1)` for a counter + FIFO
+  queue — inherent, not surprising). Such an NFR is **review-only**; an ADR for it would
+  be a perpetually-uncited non-decision (it could never lazily promote). The fix is to
+  tighten the PRD/PLAN/coverage wording "ADR" → "code review" across every restating
+  site (reconcile-ALL), NOT to add the ADR. Contrast a complexity NFR the suite DOES
+  test via a metric/visit-count golden (bptree/merge-iterator): there the ADR is real
+  and cited. (2026-06-16 semaphore-architecture: Codex flagged "PRD routes
+  complexity/space to ADR but none exists" — resolved by the wording sweep, not a new
+  ADR.) **An architecture repo ships DELIVERABLE infra — the
+  `rules/{impl}-boundaries.yaml` an impl's lint runner loads — so the architecture
+  review MUST run the leaked-`</content>`-wrapper-tag sweep AND parse every shipped
+  YAML/JSON with a REAL loader (`yaml.safe_load`/`json.load`), not an ADR-section-lint
+  or a text-compare. A `Write`-leaked tag passes the section-lint and a text-compare yet
+  breaks `yaml.safe_load`, shipping a boundaries.yaml the lint runner can't load.
+  (2026-06-17 semaphore-architecture CONVERGED with a leaked tag in all 10 ADRs + the
+  boundaries.yaml — `yaml.safe_load` failed — because its lint never parsed the YAML;
+  only the downstream `semaphore-conformance` Lens-7 upstream-parse caught it ~90 min
   later. The same leaked-tag + parse gate the cdd-conformance amendments already run
   belongs in the architecture review too.)
 - **Round forecast** — an *estimate* (e.g. "small/internally-consistent → ~1;
@@ -599,19 +590,18 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    changes; a new `Dockerfile` or generated file is invisible to it) — do not trust
    the PEER's self-report. **Read the diff only AFTER the round has fully
    completed** (the round-driver exited / its last message is written) — never
-   from a mid-flight working tree. A co-editor commonly
-   tries-then-reverts experimental edits *within* a round, so an in-progress
-   tree can show a transient "regression" the round itself discards before
-   finishing; re-verifying mid-flight manufactures phantom findings and wastes
-   an adjudication. (2026-06-06 raycaster-cpp: a mid-round read caught a
+   from a mid-flight working tree. A co-editor commonly tries-then-reverts
+   experimental edits *within* a round, so an in-progress tree can show a
+   transient "regression" the round itself discards before finishing;
+   re-verifying mid-flight manufactures phantom findings and wastes an
+   adjudication. (2026-06-06 raycaster-cpp: a mid-round read caught a
    `wallSlice` `== 0`→`!= 0` experiment that the gate rejected and Codex
    reverted before its CONVERGED — the final diff was clean.) Re-run the full
    gate. Check no regression and no new defect was introduced. **Fact-check
-   claimed "corrections"**: the PEER may
-   present a *regression* as a fix with confident wording (e.g. renaming a
-   valid identifier/API/config element to a non-existent one and calling it
-   a casing fix). Verify renamed names against authoritative knowledge, not
-   just that the diff is minimal and in-scope. **A PEER factual claim about a
+   claimed "corrections"**: the PEER may present a *regression* as a fix with
+   confident wording (e.g. renaming a valid identifier/API/config element to a
+   non-existent one and calling it a casing fix). Verify renamed names against
+   authoritative knowledge, not just that the diff is minimal and in-scope. **A PEER factual claim about a
    gate-derived quantity (test count, pass/fail, coverage) is UNVERIFIED when
    the PEER could not run the gate** — its process/tool environment may lack
    daemon, socket, or network access, so a containerized/network-fetching gate
@@ -747,7 +737,14 @@ the PEER to report even if it has not exhausted it. Feed each later half the
 prior half's own accepted findings so the budget goes to unexplored ground.
 (2026-08-19 doc-portal-ai-platform: a 16-minute round over 13 diagrams was
 killed with 22 files edited and no report; two bounded halves each finished
-inside 15 minutes and independently rediscovered its findings.)
+inside 15 minutes and rediscovered its findings.) **A killed round's edits are
+disposed of, never adopted** — snapshot the diff outside the repo, reset to the
+baseline, and say so in the report. Expect the tree to look *finished*: a
+quota-killed round can leave the entire gate green, and adopting that
+unreported, unverdicted diff publishes it as reviewed. (2026-09-06
+tutorial-build-a-jwt-library: Codex hit a monthly cap mid-round-1 having edited
+13 files; the full gate passed, including probes it had added itself, with no
+report and no verdict.)
 
 **Non-progress abort:** if a round produces no substantive improvement against
 open findings (or oscillates), stop the loop and report — do not keep spending.
@@ -818,9 +815,9 @@ re-verified):
     external-system failure, not a NOT-CONVERGED outcome. **The convergence
     contract is NOT satisfied** (no explicit CONVERGED line). Do NOT fabricate
     a verdict, do NOT silently treat reviewer-side green as the verdict, and do
-    NOT loop while waiting for the reset (the rate-limit window is hours, not
-    seconds). Resolve by: (a) committing any reviewer-applied edits made before
-    the verdict was dispatched, (b) pushing the working tree per Step 6, (c)
+    NOT loop while waiting for the reset (hours, or weeks on a monthly cap —
+    never seconds). Resolve by: (a) committing any reviewer-applied edits made
+    before the verdict was dispatched, (b) pushing the working tree per Step 6, (c)
     recording the verdict-pending state explicitly in the report (cite the reset
     time the CLI returned), and (d) telling the user to re-run
     `/peerreview` against the same repo after the reset — the loop will resume
