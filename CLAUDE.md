@@ -66,13 +66,19 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   `chore` `ci`
   (`evolve`/`fix`/`research` are this repo's established style; `peerreview:` is
   emitted by round commits — keep them.)
-- **Squash subjects are a known exception, until landing is changed.** `gh pr
-  merge --squash` without `--subject` derives the commit subject from the
-  untyped N-2 PR title, so N-4 cannot hold for the squash commit today. Until
-  landing builds `<type>: <issue title, initial letter lowercased> (#<PR>)` from
-  a `Delivery-Type:` field in the PR body, set the squash subject by hand at
-  merge time, or accept the untyped one. Do not "fix" it by putting a type
-  prefix on the PR title — that breaks N-2 instead.
+- **Landed subject.** The squash-exception other families carry does not apply
+  here: `scripts/delivery-branch.sh land` squashes **locally**
+  (`git merge --squash` + `git commit -F <msgfile>`), so no provider derives a
+  subject from a PR title and N-4 holds with nothing to work around. The
+  msgfile's first line IS the landed subject — write it as
+  `<type>(<scope>)?: <lowercase imperative>`, at most 72 characters, with the
+  round-by-round evidence in the body. That commit lands in the **reviewed**
+  repository, so the type must come from *that* repository's `Types:`
+  vocabulary (`AGENTS.md`, else `CLAUDE.md`) when it declares one; a reviewed
+  repo declaring none is unconstrained. If a review ever lands through
+  `gh pr merge --squash` instead, pass `--subject` explicitly rather than
+  accepting the provider's untyped default, and never put a type prefix on the
+  PR title — that breaks N-2 instead.
 - **Private material.** This repository is private today; the rule is
   prospective, because a leak recorded now survives into any later publication.
   Never name the private companion product-contract repository (this project's
