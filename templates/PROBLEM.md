@@ -37,6 +37,13 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
 <!-- Deterministic commands the reviewer runs every round. Exit 0 = pass.
      Must be fail-closed and must NOT change host state or hit the network
      unless the repo's whole purpose is network I/O (then sandbox it).
+     One more exception: a FIDELITY gate comparing the artifact against a live
+     upstream source of truth. Keep it a SEPARATE target from the offline
+     primary gate and run it HOST-side — the PEER's sandbox routinely has no
+     DNS, so folding it in makes every peer round report a red gate it cannot
+     fix, and a fidelity check that SKIPS when unreachable is worse than none
+     (tutorial-build-a-jwt-library 2026-09-07: `make check` offline, `make
+     fidelity` networked; 5/5 peer rounds reported 14 DNS failures until split).
      HTML repos: stale system libxml2 `xmllint --html` emits "Tag <X>
      invalid" for VALID HTML5 (figure, figcaption, section, nav, header,
      footer, article, aside, details, summary, mark, time, main) — filter

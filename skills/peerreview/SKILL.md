@@ -305,16 +305,15 @@ security surface, blast radius), produce:
   past the end) at baseline. But **pin only a count the source genuinely enumerates**
   (chapters, spec sections, declared `001..N`). When the count is a
   *decomposition choice* the source does NOT dictate — how many issues a chapter
-  splits into — pinning it is itself artifact-derived and OVERFITS, wrongly
-  failing a legitimate re-split (one issue → two). There, keep numbering to the
-  pure invariant (unique, contiguous `001..N`, N free) and put whole-unit coverage
-  on the **concept/dependency closure** (every source chapter's concepts present +
-  correctly ordered), which catches dropping a *meaningful* unit regardless of
-  count. (raytracing-in-one-weekend 2026-06-06: gate derived the range from
-  `len(nums)`, blind to append/truncate → pinned `EXPECTED=36`. rasterization
-  2026-06-06: `EXPECTED=16` on a roadmap was the right reflex, wrong target —
-  Codex flagged the overfit; reverted to contiguity + concept-closure, which
-  already fails a dropped capstone.)
+  splits into — pinning it is itself artifact-derived and OVERFITS, wrongly failing a
+  legitimate re-split (one issue → two). There, keep numbering to the pure invariant
+  (unique, contiguous `001..N`, N free) and put whole-unit coverage on the
+  **concept/dependency closure** (every source chapter's concepts present + correctly
+  ordered), which catches dropping a *meaningful* unit regardless of count.
+  (raytracing-in-one-weekend 2026-06-06: gate derived the range from `len(nums)`, blind
+  to append/truncate → pinned `EXPECTED=36`. rasterization 2026-06-06: `EXPECTED=16` on
+  a roadmap was the right reflex, wrong target — Codex flagged the overfit; reverted to
+  contiguity + concept-closure, which already fails a dropped capstone.)
   **A substring concept-sentinel must be a token NOT contained in an umbrella
   term present elsewhere** — e.g. `"encod"` is a substring of `"bEncoding"`, so a
   `bencode-encode` sentinel of `"encod"` matches every issue merely mentioning
@@ -328,55 +327,52 @@ security surface, blast radius), produce:
   (`"block"` matches "genesis block"/"AddBlock" regardless — gate the distinctive
   `"NewBlock"`, which `\b` keeps off "NewBlockchain"). And when the charter prose
   **duplicates** the gate's machine-checked concept list, name the gate's table
-  the single authoritative source + have the prose mirror it (parity-check both),
-  or they drift — the charter listing a concept the gate never enforces.
+  the single authoritative source + have the prose mirror it (parity-check both), or
+  they drift — the charter listing a concept the gate never enforces.
   (building-blockchain-in-go 2026-06-07: Codex drove all four over 4 rounds —
-  header-masking, substring-masking, the `block` non-sentinel, charter/script
-  drift.) And **mutation-test
-  each concept by dropping its section AND renumbering contiguously** — a bare
-  drop leaves a numbering gap that AC2 catches first, masking whether AC1 concept-
-  closure would have caught it on its own. (bittorrent-client 2026-06-06: Step 0.5
-  self-test caught both — the umbrella-substring false-negative and the AC2-masks-
-  AC1 blind spot — before baseline.)
-  A second masking class is **forward-reference cross-prose**: a sibling issue's
-  annotation echoes a concept's loose-substring trigger (e.g. a `verify` issue
-  whose body cites "ReadPiece/WriteBlock/+constructor", or a Program issue saying
-  "create…a torrent"), so dropping the *real* section passes on the sibling's
-  reference. When **no clean distinctive noun exists** (read/write/verify share
-  vocabulary across siblings by design), anchor the sentinel on the issue's
+  header-masking, substring-masking, the `block` non-sentinel, charter/script drift.)
+  And **mutation-test each concept by dropping its section AND renumbering
+  contiguously** — a bare drop leaves a numbering gap that AC2 catches first, masking
+  whether AC1 concept- closure would have caught it on its own. (bittorrent-client
+  2026-06-06: Step 0.5 self-test caught both — the umbrella-substring false-negative and
+  the AC2-masks- AC1 blind spot — before baseline.) A second masking class is
+  **forward-reference cross-prose**: a sibling issue's annotation echoes a concept's
+  loose-substring trigger (e.g. a `verify` issue whose body cites
+  "ReadPiece/WriteBlock/+constructor", or a Program issue saying "create…a torrent"), so
+  dropping the *real* section passes on the sibling's reference. When **no clean
+  distinctive noun exists** (read/write/verify share vocabulary across siblings by
+  design), anchor the sentinel on the issue's
   **canonical branch slug** — AC3 guarantees it unique and it is removed when the
   issue is dropped, immune to prose echoes. Critically, **mutation-test EVERY
   section-drop exhaustively, never a sample** — a round that *adds* forward-ref
   documentation can mask OTHER concepts, so a self-test that checked only the one
-  concept it was hardening (round 1: bencode) misses the regression it just
-  introduced. (bittorrent-client 2026-06-06 re-run: sweeping all 19 drops found 5
-  torrent-phase blind spots that round 1's forward-ref annotations had created and
-  its sampled self-test missed; branch-slug anchoring fixed all five.) The same
-  masking applies to **section-
-  specific prose sentinels** (Migration Notes, Residuals, Versions `Why` cells):
-  bound the search to the intended section, never the whole artifact, or later
-  issue lines can satisfy a prose requirement by forward reference.
-  **A phase/section-ordering check** (e.g. "all Peer-phase issues before all
-  Client-phase issues") must derive phase membership from a **non-evadable UNION
-  of independent signals** — the declared structure header (`## Phase N: <name>`)
-  AND the closure predicates — never a single proxy. Each single proxy is
-  evadable: a branch-prefix (`feat/peer-`) by a renamed kebab slug (AC3 permits
-  any); the `## Phase` header alone by a malformed/missing header that silently
-  empties the set and skips the guarded check. The union is robust because
-  closure already requires every concept present, so an issue cannot be hidden
-  from its phase set without independently failing closure. Caveat: a closure
-  predicate **relaxed to feed the union** (made branch-independent so renamed
-  branches still match) must keep a **context anchor**, or it reintroduces
-  masking — e.g. a bare `client-downloads = "download" in title` is satisfied by
-  a Program entry-point issue's "create/seed/download a torrent" CLI verb;
-  exclude the program/entry-point title. (bittorrent-client 2026-06-06: driven
-  over 4 rounds, branch-only → union; R4 fixed the relaxed-predicate masking
-  regression. Two prior same-vendor passes missed the whole family.)
-  (c-quater) when a tutorial roadmap **includes the AWS deploy phase** (a
-  deployable artifact), the gate must verify the deploy issues are **contained
-  within the Deploy phase block** (between its header and the next header / EOF)
-  and in dependency order (IaC → e2e-suite → CI/CD-workflow → capstone), not
-  merely present *somewhere* in PLAN.md; and the CI/CD-workflow issue must
+  concept it was hardening (round 1: bencode) misses the regression it just introduced.
+  (bittorrent-client 2026-06-06 re-run: sweeping all 19 drops found 5 torrent-phase
+  blind spots that round 1's forward-ref annotations had created and its sampled
+  self-test missed; branch-slug anchoring fixed all five.) The same masking applies to
+  **section- specific prose sentinels** (Migration Notes, Residuals, Versions `Why`
+  cells): bound the search to the intended section, never the whole artifact, or later
+  issue lines can satisfy a prose requirement by forward reference. **A
+  phase/section-ordering check** (e.g. "all Peer-phase issues before all
+  Client-phase issues") must derive phase membership from a **non-evadable UNION of
+  independent signals** — the declared structure header (`## Phase N: <name>`) AND the
+  closure predicates — never a single proxy. Each single proxy is evadable: a
+  branch-prefix (`feat/peer-`) by a renamed kebab slug (AC3 permits any); the `## Phase`
+  header alone by a malformed/missing header that silently empties the set and skips the
+  guarded check. The union is robust because closure already requires every concept
+  present, so an issue cannot be hidden from its phase set without independently failing
+  closure. Caveat: a closure predicate **relaxed to feed the union** (made
+  branch-independent so renamed branches still match) must keep a **context anchor**, or
+  it reintroduces masking — e.g. a bare `client-downloads = "download" in title` is
+  satisfied by a Program entry-point issue's "create/seed/download a torrent" CLI verb;
+  exclude the program/entry-point title. (bittorrent-client 2026-06-06: driven over 4
+  rounds, branch-only → union; R4 fixed the relaxed-predicate masking regression. Two
+  prior same-vendor passes missed the whole family.) (c-quater) when a tutorial roadmap
+  **includes the AWS deploy phase** (a deployable artifact), the gate must verify the
+  deploy issues are **contained within the Deploy phase block** (between its header and
+  the next header / EOF) and in dependency order (IaC → e2e-suite → CI/CD-workflow →
+  capstone), not merely present *somewhere* in PLAN.md; and the CI/CD-workflow issue
+  must
   **author** the full `apply→sync→invalidate→e2e→destroy(if:always)` lifecycle
   while the capstone issue **executes** it once (apply→e2e→destroy) — the two
   distinct, never an apply-less or duplicated overlap. More generally,
@@ -384,69 +380,65 @@ security surface, blast radius), produce:
   required issues" for one phase kind, apply it to EVERY phase kind in the same
   sweep — adding it for article phases but not the deploy phase costs a verdict
   round each. (3d-soft-engine 2026-06-06: e2e-before-cicd ordering, deploy-issue
-  containment, and the author-vs-execute split were the round 2–4 findings.)
-  The deploy e2e issue's branch `test/e2e` is **valid**: the IDD "no numbers in
-  branch names" rule bans *issue-number* tokens (`feat/scanner-002`), not digits
-  inside a word (`e2e`, `s3`, `oauth2`). A branch-hygiene gate must tokenize on
-  `/_-` and flag only an all-digit token; never "fix" `test/e2e` by renaming it.
-  (Settled 2026-06-06 after two re-derivations: keep `test/e2e`.)
-  (d) when the charter's **verification gate is itself the deliverable infra**
-  (a self-authored ADR/boundary-rule or golden-file charter whose gate greps/
-  parses the artifact), the gate is a self-serving artifact too — Codex will
-  adversarially mutation-test it (flip an enum, add an ignored field, feed a
-  substring/word-boundary/trailing-char near-miss, an unanchored-heading look-
-  alike). The moment the FIRST gate-robustness false-pass surfaces, do a
-  **comprehensive hardening sweep in one round** — anchor every grep (`^…$`),
-  use full-identifier-boundary token matches (not substring/`\b`-on-digits),
-  parse structured formats with a real parser (PyYAML/JSON, not regex), and
-  require paired/path-correct fields, and **never let a check repair what it
-  asserts** (a mirror/codegen gate running its generator IN PLACE fixes the
-  staleness it exists to detect and greens on the next run — regenerate
-  out-of-tree and compare) — instead of patching one regex per round.
-  Reactive per-regex patching invites the next paranoia level and burns ~3
-  rounds (raytracer-architecture 2026-05-31: a round-6 sweep converged at once).
-  Two false-NEGATIVE hazards are worse than a false pass, because they
-  manufacture findings: `producer | grep -q P` under `set -o pipefail` returns
-  141 on a MATCH (grep exits early, producer takes SIGPIPE) — spool the producer
-  to a file and grep that; and an assertion carrying its own copy of a quotation
-  compares the gate to the source of truth with the artifact out of the loop —
-  extract each claim FROM the artifact and verify THAT against the source, which
-  is (c-ter)'s complement, not its opposite. (idd-naming-standard 2026-09-02.)
-  Hardening also moves the **accept** boundary, invisible to a gate whose fixtures
-  predate it: execute each newly-tightened check against a realistic POSITIVE
-  case, never only re-run the gate green (system-skills 2026-09-07: three of one
-  round's tightenings silently began rejecting valid work; the diff read fine).
-  **When the deliverable is mechanically reconstructible from its source** (a
-  transcription/port/faithful-copy whose body is the source content verbatim
-  under a fixed authored header — e.g. a doc2md xlsx→md whose every table line is
-  an extraction row), that one-round sweep is a **whole-file byte-exact
-  reconstruction diff**: rebuild `(fixed header + source-derived rows)` and `diff`
-  the ENTIRE deliverable against it. It pins every byte to either the source or
-  the fixed header, so no structural near-miss (extra heading, smuggled
-  blockquote, a blank line splitting the table, reordered prose) survives — reach
-  for it on the FIRST gate-robustness false-pass instead of iterating prefix/
-  structural checks. A gameable gate on a mechanical deliverable is the whole
-  cause of the escalation, not the reviewer's thoroughness. (2026-07-09 doc2md
-  BuyEdayTC: a single-table, no-image xlsx converged in 6 rounds — round 1 a real
-  confidentiality overclaim, round 2 real, but rounds 3–6 were pure gate-hole
-  escalation a whole-file reconstruction diff would have pre-empted at round 3.)
-  (e) **Math/renderer architecture repos** (ADRs/boundary-rules pinning a
-  rasterizer, raytracer, physics, codec — decisions that are comparators,
-  inequalities, or directions): the dominant defect is **convention-direction
-  inconsistency**, and it is INVISIBLE in the ADR prose — a backwards inequality
-  reads fine and passes every structural gate. Re-derive every
-  comparator/inequality DIRECTION (depth sign, bias sign, comparator strictness
-  `<` vs `≤`, order-independence scope, inclusive/exclusive bounds, **the
-  metric/counting model — which steps a cost counter counts**) against the
-  citing conformance oracle/goldens AND the faithful reference, never trust the
-  ADR wording (tinyrenderer-architecture 2026-06-05: ADR-0006's shadow-bias
-  inequality was literally backwards — `frag > stored + bias` vs the faithful
-  `frag < stored - bias` — caught only by re-deriving against the `shadow/002`
-  golden; the light-buffer convention contradicted the same ADR's z-buffer
-  convention). A distinct axis is **time/unit granularity — and here re-deriving
-  against the golden ALONE gives false confidence**: when a discrete-time predicate
-  (`at ≤ validBefore` in whole seconds) is realized over a finer-clock store (a
-  Redis ms-wall-clock TTL), the golden runs at the COARSE grain and passes with
+  containment, and the author-vs-execute split were the round 2–4 findings.) The deploy
+  e2e issue's branch `test/e2e` is **valid**: the IDD "no numbers in branch names" rule
+  bans *issue-number* tokens (`feat/scanner-002`), not digits inside a word (`e2e`,
+  `s3`, `oauth2`). A branch-hygiene gate must tokenize on `/_-` and flag only an
+  all-digit token; never "fix" `test/e2e` by renaming it. (Settled 2026-06-06 after two
+  re-derivations: keep `test/e2e`.) (d) when the charter's **verification gate is itself
+  the deliverable infra** (a self-authored ADR/boundary-rule or golden-file charter
+  whose gate greps/ parses the artifact), the gate is a self-serving artifact too —
+  Codex will adversarially mutation-test it (flip an enum, add an ignored field, feed a
+  substring/word-boundary/trailing-char near-miss, an unanchored-heading look- alike).
+  The moment the FIRST gate-robustness false-pass surfaces, do a **comprehensive
+  hardening sweep in one round** — anchor every grep (`^…$`), use
+  full-identifier-boundary token matches (not substring/`\b`-on-digits),
+  parse structured formats with a real parser (PyYAML/JSON, not regex), and require
+  paired/path-correct fields, and **never let a check repair what it asserts** (a
+  mirror/codegen gate running its generator IN PLACE fixes the staleness it exists to
+  detect and greens on the next run — regenerate out-of-tree and compare) — instead of
+  patching one regex per round. Reactive per-regex patching invites the next paranoia
+  level and burns ~3 rounds (raytracer-architecture 2026-05-31: a round-6 sweep
+  converged at once). Two false-NEGATIVE hazards are worse than a false pass, because
+  they manufacture findings: `producer | grep -q P` under `set -o pipefail` returns 141
+  on a MATCH (grep exits early, producer takes SIGPIPE) — spool the producer to a file
+  and grep that; and an assertion carrying its own copy of a quotation compares the gate
+  to the source of truth with the artifact out of the loop — extract each claim FROM the
+  artifact and verify THAT against the source, which is (c-ter)'s complement, not its
+  opposite. (idd-naming-standard 2026-09-02.) Hardening also moves the **accept**
+  boundary, invisible to a gate whose fixtures predate it: execute each newly-tightened
+  check against a realistic POSITIVE case, never only re-run the gate green
+  (system-skills 2026-09-07: three of one round's tightenings silently began rejecting
+  valid work; the diff read fine). **When the deliverable is mechanically
+  reconstructible from its source** (a
+  transcription/port/faithful-copy whose body is the source content verbatim under a
+  fixed authored header — e.g. a doc2md xlsx→md whose every table line is an extraction
+  row), that one-round sweep is a **whole-file byte-exact reconstruction diff**: rebuild
+  `(fixed header + source-derived rows)` and `diff` the ENTIRE deliverable against it.
+  It pins every byte to either the source or the fixed header, so no structural
+  near-miss (extra heading, smuggled blockquote, a blank line splitting the table,
+  reordered prose) survives — reach for it on the FIRST gate-robustness false-pass
+  instead of iterating prefix/ structural checks. A gameable gate on a mechanical
+  deliverable is the whole cause of the escalation, not the reviewer's thoroughness.
+  (2026-07-09 doc2md BuyEdayTC: a single-table, no-image xlsx converged in 6 rounds —
+  round 1 a real confidentiality overclaim, round 2 real, but rounds 3–6 were pure
+  gate-hole escalation a whole-file reconstruction diff would have pre-empted at round
+  3.) (e) **Math/renderer architecture repos** (ADRs/boundary-rules pinning a
+  rasterizer, raytracer, physics, codec — decisions that are comparators, inequalities,
+  or directions): the dominant defect is **convention-direction inconsistency**, and it
+  is INVISIBLE in the ADR prose — a backwards inequality reads fine and passes every
+  structural gate. Re-derive every comparator/inequality DIRECTION (depth sign, bias
+  sign, comparator strictness `<` vs `≤`, order-independence scope, inclusive/exclusive
+  bounds, **the metric/counting model — which steps a cost counter counts**) against the
+  citing conformance oracle/goldens AND the faithful reference, never trust the ADR
+  wording (tinyrenderer-architecture 2026-06-05: ADR-0006's shadow-bias inequality was
+  literally backwards — `frag > stored + bias` vs the faithful `frag < stored - bias` —
+  caught only by re-deriving against the `shadow/002` golden; the light-buffer
+  convention contradicted the same ADR's z-buffer convention). A distinct axis is
+  **time/unit granularity — and here re-deriving against the golden ALONE gives false
+  confidence**: when a discrete-time predicate (`at ≤ validBefore` in whole seconds) is
+  realized over a finer-clock store (a Redis ms-wall-clock TTL), the golden runs at the
+  COARSE grain and passes with
   *either* formula, so it is blind to the sub-unit gap. `EXPIREAT validBefore`
   expires at the START of the boundary second → an in-window replay at `validBefore.5 s`
   is wrongly re-accepted (a sub-unit replay hole); the faithful impl needs `+1`
@@ -786,23 +778,20 @@ re-verified):
   the PEER a verdict-only prompt (no edits permitted) asking for either
   `CONVERGED — no substantive defects remain` or `NOT CONVERGED — round
   N+1 needed, [defects listed]`. Run the resolved PEER's read-only verdict with
-  `<DRIVER> <repo> <verdict> <out> --verdict` (Step 0.0). Verify the diff stays
-  empty; `dsh-round.sh` asserts that itself — because the harness has no tool
-  allowlist — and fails the round if the tree moved, leaving the mutation in
-  place for you to adjudicate rather than reverting the review out from under you.
-  The HOST no longer declares convergence
-  unilaterally — even a clean gate + reviewer-judged exhausted lenses is
-  insufficient if the PEER still sees residuals. If the PEER returns NOT
-  CONVERGED, dispatch round N+1 against its named defects and repeat
-  the verdict prompt after. Continue until the PEER says CONVERGED on the
-  committed state. This codifies the "second-model agreement" the
-  mandatory PEER round was supposed to provide but did not — running
-  one edit-round once and not asking for an explicit verdict is the
-  failure mode this rule corrects.
-  - **The verdict prompt MUST be neutral — no anchoring (user directive,
-    2026-05-23).** Present only raw, neutral facts (the gate's actual command
-    output) and explicitly invite the PEER to find more; do NOT pre-load your own
-    conclusions ("all green, lenses swept clean, README honest, no findings").
+  `<DRIVER> <repo> <verdict> <out> --verdict` (Step 0.0). Verify the diff stays empty;
+  `dsh-round.sh` asserts that itself — because the harness has no tool allowlist — and
+  fails the round if the tree moved, leaving the mutation in place for you to adjudicate
+  rather than reverting the review out from under you. The HOST no longer declares
+  convergence unilaterally — even a clean gate + reviewer-judged exhausted lenses is
+  insufficient if the PEER still sees residuals. If the PEER returns NOT CONVERGED,
+  dispatch round N+1 against its named defects and repeat the verdict prompt after.
+  Continue until the PEER says CONVERGED on the committed state. This codifies the
+  "second-model agreement" the mandatory PEER round was supposed to provide but did not
+  — running one edit-round once and not asking for an explicit verdict is the failure
+  mode this rule corrects. - **The verdict prompt MUST be neutral — no anchoring (user
+  directive, 2026-05-23).** Present only raw, neutral facts (the gate's actual command
+  output) and explicitly invite the PEER to find more; do NOT pre-load your own
+  conclusions ("all green, lenses swept clean, README honest, no findings").
     A leading verdict biases Codex toward agreement and manufactures false-fast
     convergence. orderflow-go (2026-05-23): the first review converged at
     **round 1** under an anchored verdict (Codex was also handed the reviewer's
@@ -858,6 +847,16 @@ what code does at runtime (e.g. "the reversed decode is display-only" vs "it
 changes settlement", "a negative amount steals" vs "it aborts at the encode
 assert"), **run it** in the gate environment and quote the output; both models'
 confident reasoning can be wrong at once, and only execution is authoritative.
+A behaviour-PRESERVATION claim ("this fix is a no-op except where it aborted")
+is the same surface with a mechanical check: extract the artifact at the
+pre-review commit and run BOTH versions over one input matrix. Reasoning about
+the diff misses the boundary a tightening moved silently — the inputs the
+language coerced rather than rejected. (2026-09-07 tutorial-build-a-jwt-library:
+a NOT CONVERGED verdict said the claim died on a restored default; differential
+execution showed that default WAS a no-op versus what shipped, and the claim
+died instead on JSON booleans, which Python's bool-is-int had let the original
+silently do arithmetic on. Both sides were partly wrong; only running both
+versions said which part.)
 (3) *residual laundering* — rewording an artifact to admit a defect is not
 fixing it. When a verdict says a gate cannot detect X, "the gate now says it
 cannot detect X" is documentation, and the next verdict repeats the finding.
@@ -963,25 +962,24 @@ git history of the skills is the record; never re-create a patterns/index log.
   "out of (edit) scope." A finding pointing at a *sibling* repo outside your edit
   scope still has to be confirmed/refuted by reading the exact file:line, then
   recorded as a flagged cross-repo defect if real — not silently dropped; a wrong
-  dismissal persists the defect until the sibling is reviewed directly.
-  (2026-06-18 mvcc-prd: a Codex finding that `mvcc-conformance/gc/README.md`
-  claimed "tombstone collapses chain / reclaimed=2" was refuted as a misread +
-  out-of-scope; the direct review a day later confirmed both stale claims — the
-  dismissal was the error.) **A finding YOU surfaced and then resolved in your own
-  favour goes into the verdict prompt as an open question, never omitted as
-  settled**: give both readings and say plainly the PEER is not asked to agree.
-  That does not re-create the orderflow-go anchoring failure — one contested item
-  with an explicit invitation to disagree is not an agenda handoff. (ArchSift contract
-  2026-08-15: the host's own completeness sweep found the reference tool's write-boundary
-  redaction had no ArchSift counterpart, then argued it away as already covered by
-  the public-repo sanitised-derivative ban; surfaced as an open question, Codex
-  returned NOT CONVERGED — that ban governs publication, not the record FR-011
-  emits for circulation to review boards — and the next round landed NFR-009.
-  Self-dismissal, not peer dismissal, was the near-miss.)
-- Fail loud and closed: auto-create a fresh active charter; absent or conflicting
-  durable intent → stop, never infer it from implementation. Missing peer/auth,
-  quota, or empty output → disclose the blocker and stop after charter cleanup.
-- Rounds are forecast for transparency; **convergence**, not a count, ends
+  dismissal persists the defect until the sibling is reviewed directly. (2026-06-18
+  mvcc-prd: a Codex finding that `mvcc-conformance/gc/README.md` claimed "tombstone
+  collapses chain / reclaimed=2" was refuted as a misread + out-of-scope; the direct
+  review a day later confirmed both stale claims — the dismissal was the error.) **A
+  finding YOU surfaced and then resolved in your own favour goes into the verdict prompt
+  as an open question, never omitted as settled**: give both readings and say plainly
+  the PEER is not asked to agree. That does not re-create the orderflow-go anchoring
+  failure — one contested item with an explicit invitation to disagree is not an agenda
+  handoff. (ArchSift contract 2026-08-15: the host's own completeness sweep found the
+  reference tool's write-boundary redaction had no ArchSift counterpart, then argued it
+  away as already covered by the public-repo sanitised-derivative ban; surfaced as an
+  open question, Codex returned NOT CONVERGED — that ban governs publication, not the
+  record FR-011 emits for circulation to review boards — and the next round landed
+  NFR-009. Self-dismissal, not peer dismissal, was the near-miss.) - Fail loud and
+  closed: auto-create a fresh active charter; absent or conflicting durable intent →
+  stop, never infer it from implementation. Missing peer/auth, quota, or empty output →
+  disclose the blocker and stop after charter cleanup. - Rounds are forecast for
+  transparency; **convergence**, not a count, ends
   it — but with a hard **floor of 1** peer round (Step 4 mandatory round;
   never converge at round 0).
 - "Ready" = charter satisfied + gates green + no substantive findings. Not "perfect".
