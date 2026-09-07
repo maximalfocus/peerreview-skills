@@ -80,7 +80,7 @@ subject_preflight() {
 
   desc="${subject#*: }"
   case "$desc" in
-    [A-Z]*) reject "the subject's description starts with a capital (N-4 wants lowercase): $subject" ;;
+    [[:upper:]]*) reject "the subject's description starts with a capital (N-4 wants lowercase): $subject" ;;
   esac
 
   type="${subject%%:*}"; type="${type%%(*}"
