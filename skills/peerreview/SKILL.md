@@ -122,8 +122,12 @@ When an artifact's claims are **empirical** — about a repository, dataset, or
 system existing outside it — mount that evidence for the PEER (a throwaway copy
 via `PEERREVIEW_ADD_DIRS`, named in the brief as evidence, never the artifact) so
 it can re-derive them; without it a round tests only internal consistency and a
-confidently-wrong empirical claim converges. (vvah-v1.3.0 2026-09-07: every
-finding that reversed the recommendation came from the PEER running git there.)
+confidently-wrong empirical claim converges. When those claims are about a
+*pinned external build* rather than the working tree, the gate must also prove
+**which build it ran** — assert the imported module's path, neutralise cwd
+injection (`python -P`), warn the PEER of the same trap. (vvah-v1.3.0 2026-09-07:
+the PEER running git there drove every reversal; a gate run beside a same-named
+package imported the reviewer's already-fixed fork, reporting the defect absent.)
 
 ## Required-peer failure (fail closed)
 
@@ -794,14 +798,10 @@ re-verified):
   directive, 2026-05-23).** Present only raw, neutral facts (the gate's actual command
   output) and explicitly invite the PEER to find more; do NOT pre-load your own
   conclusions ("all green, lenses swept clean, README honest, no findings").
-    A leading verdict biases Codex toward agreement and manufactures false-fast
-    convergence. orderflow-go (2026-05-23): the first review converged at
-    **round 1** under an anchored verdict (Codex was also handed the reviewer's
-    findings as its agenda); a user-prompted re-review with a **neutral verdict
-    + a fresh independent Codex session** found **6 real defects over 5 rounds**
-    and refuted 1 Codex-proposed regression. One round on a same-session /
-    self-serving repo (same model wrote the code AND its prior review) is a
-    yellow flag — re-prove convergence neutrally, do not rubber-stamp.
+    A leading verdict biases the PEER toward agreement and manufactures false-fast
+    convergence (orderflow-go, in full under "Keep the PEER review independent";
+    the neutral re-review also refuted 1 PEER-proposed regression). One round on a
+    self-serving repo is a yellow flag — re-prove neutrally, do not rubber-stamp.
   - **A peer usage-limit error during the verdict prompt is a "verdict-pending"
     residual, NOT a silent CONVERGED (student-mgmt-conformance 2026-05-29).**
     Any peer CLI can return a usage-limit error instead of rendering
