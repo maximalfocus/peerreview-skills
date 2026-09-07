@@ -56,7 +56,7 @@ New artifact-type profile with no matching `peerreview-approach-*`? Create `skil
 
 ### GATE: Commit and publish (before skill exit)
 
-Every kept change must reach `maximalfocus/peerreview-skills` on `main` — follow **Article 9** of the constitution: stage only this session's explicit paths (never `git add -A`), edit `CONSTITUTION.md` and `skills/` only (there is no `commands/` mirror), `git pull --rebase origin main` before committing, retry the push on non-fast-forward rejection (≤3), never force-push or branch. Verify the size gate and report the commit SHA(s). Scope: this repo only — repos under review follow the Path-scoped git policy.
+Every kept change must reach `maximalfocus/peerreview-skills` on `main` — follow **Article 9** of the constitution: stage only this session's explicit paths (never `git add -A`), edit `CONSTITUTION.md` and `skills/` only (there is no `commands/` mirror), commit first, then `git pull --rebase origin main`, then push, retrying on non-fast-forward rejection (≤3), never force-push or branch. Verify the size gate and report the commit SHA(s). Scope: this repo only — repos under review follow the Path-scoped git policy.
 
 ## After completion: evolve this skill
 

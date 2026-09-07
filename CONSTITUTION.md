@@ -74,5 +74,5 @@ Every evolve change must reach `maximalfocus/peerreview-skills` on `main` — lo
 
 1. **Stage only the paths this session changed** — explicit `git add <paths>`, never `-A`/`-u`/`.`. Leave files you didn't touch.
 2. **Edit only task-coupled methodology sources/support** — `CONSTITUTION.md`, `skills/`, and directly invoked `scripts/`/`templates/` or their README documentation. There is no `commands/` mirror to regenerate (unlike cdd-skills).
-3. **Rebase before committing; retry push on rejection** (`git pull --rebase origin main`, ≤3 attempts). Never force-push, never PR branches in this repo.
+3. **Commit, then rebase, then push; retry on rejection** (`git pull --rebase origin main`, ≤3 attempts). Rebasing before the commit fails outright — an evolve pass reaches this step with its edit already in the tree, and `pull --rebase` refuses on unstaged or staged-but-uncommitted changes. Never force-push, never PR branches in this repo.
 4. Verify the size gate; report the commit SHA. Scope of auto-publish: **this repo only** — repos under review follow the Path-scoped policy above.
