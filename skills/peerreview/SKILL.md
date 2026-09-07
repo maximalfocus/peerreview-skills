@@ -389,8 +389,7 @@ security surface, blast radius), produce:
   branch names" rule bans *issue-number* tokens (`feat/scanner-002`), not digits
   inside a word (`e2e`, `s3`, `oauth2`). A branch-hygiene gate must tokenize on
   `/_-` and flag only an all-digit token; never "fix" `test/e2e` by renaming it.
-  (Re-derived twice on 2026-06-06 — 3d-soft-engine renamed it, cgfs narrowed the
-  gate; settled: keep `test/e2e`.)
+  (Settled 2026-06-06 after two re-derivations: keep `test/e2e`.)
   (d) when the charter's **verification gate is itself the deliverable infra**
   (a self-authored ADR/boundary-rule or golden-file charter whose gate greps/
   parses the artifact), the gate is a self-serving artifact too — Codex will
@@ -400,7 +399,10 @@ security surface, blast radius), produce:
   **comprehensive hardening sweep in one round** — anchor every grep (`^…$`),
   use full-identifier-boundary token matches (not substring/`\b`-on-digits),
   parse structured formats with a real parser (PyYAML/JSON, not regex), and
-  require paired/path-correct fields — instead of patching one regex per round.
+  require paired/path-correct fields, and **never let a check repair what it
+  asserts** (a mirror/codegen gate running its generator IN PLACE fixes the
+  staleness it exists to detect and greens on the next run — regenerate
+  out-of-tree and compare) — instead of patching one regex per round.
   Reactive per-regex patching invites the next paranoia level and burns ~3
   rounds (raytracer-architecture 2026-05-31: a round-6 sweep converged at once).
   Two false-NEGATIVE hazards are worse than a false pass, because they
@@ -410,6 +412,10 @@ security surface, blast radius), produce:
   compares the gate to the source of truth with the artifact out of the loop —
   extract each claim FROM the artifact and verify THAT against the source, which
   is (c-ter)'s complement, not its opposite. (idd-naming-standard 2026-09-02.)
+  Hardening also moves the **accept** boundary, invisible to a gate whose fixtures
+  predate it: execute each newly-tightened check against a realistic POSITIVE
+  case, never only re-run the gate green (system-skills 2026-09-07: three of one
+  round's tightenings silently began rejecting valid work; the diff read fine).
   **When the deliverable is mechanically reconstructible from its source** (a
   transcription/port/faithful-copy whose body is the source content verbatim
   under a fixed authored header — e.g. a doc2md xlsx→md whose every table line is
@@ -423,8 +429,7 @@ security surface, blast radius), produce:
   cause of the escalation, not the reviewer's thoroughness. (2026-07-09 doc2md
   BuyEdayTC: a single-table, no-image xlsx converged in 6 rounds — round 1 a real
   confidentiality overclaim, round 2 real, but rounds 3–6 were pure gate-hole
-  escalation [headings → smuggled blockquote → editorial-exception → blank-in-
-  table] that a whole-file reconstruction diff would have pre-empted at round 3.)
+  escalation a whole-file reconstruction diff would have pre-empted at round 3.)
   (e) **Math/renderer architecture repos** (ADRs/boundary-rules pinning a
   rasterizer, raytracer, physics, codec — decisions that are comparators,
   inequalities, or directions): the dominant defect is **convention-direction
@@ -803,11 +808,9 @@ re-verified):
     **round 1** under an anchored verdict (Codex was also handed the reviewer's
     findings as its agenda); a user-prompted re-review with a **neutral verdict
     + a fresh independent Codex session** found **6 real defects over 5 rounds**
-    (cross-form submission id, no-sid skip-ahead, zero-step panic, unknown
-    branch operator, branched-over step access, 422-Back + single-value
-    over-persistence) and refuted 1 Codex-proposed regression. One round on a
-    same-session / self-serving repo (same model wrote the code AND its prior
-    review) is a yellow flag — re-prove convergence neutrally, do not rubber-stamp.
+    and refuted 1 Codex-proposed regression. One round on a same-session /
+    self-serving repo (same model wrote the code AND its prior review) is a
+    yellow flag — re-prove convergence neutrally, do not rubber-stamp.
   - **A peer usage-limit error during the verdict prompt is a "verdict-pending"
     residual, NOT a silent CONVERGED (student-mgmt-conformance 2026-05-29).**
     Any peer CLI can return a usage-limit error instead of rendering
