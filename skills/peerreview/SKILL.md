@@ -118,6 +118,12 @@ artifact and per-AC report in the response; then run
 `bash ~/personal/peerreview-skills/scripts/chat-review-temp.sh clean "$CHAT_WORKSPACE"`.
 Clean `CHAT_WORKSPACE` on every terminal exit, including dry-run, auth failure,
 ambiguity, non-progress, and verdict-pending.
+When an artifact's claims are **empirical** — about a repository, dataset, or
+system existing outside it — mount that evidence for the PEER (a throwaway copy
+via `PEERREVIEW_ADD_DIRS`, named in the brief as evidence, never the artifact) so
+it can re-derive them; without it a round tests only internal consistency and a
+confidently-wrong empirical claim converges. (vvah-v1.3.0 2026-09-07: every
+finding that reversed the recommendation came from the PEER running git there.)
 
 ## Required-peer failure (fail closed)
 
@@ -622,17 +628,11 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    deps.dev/Snyk, which lag the registry by patch releases; for Python, the PyPI
    JSON API (`pypi.org/pypi/<pkg>/json` — `info.version` + the per-release wheel
    list)) and keep/revert per that. For a **C-extension dep on a bleeding-edge
-   interpreter**, "latest version exists" is NOT enough — verify a binary wheel
-   for the EXACT `(interpreter-ABI, platform)` the artifact targets actually
-   ships (e.g. a `cpNNN-…-macosx_*_arm64` wheel), or the user silently needs a
-   compiler; the wheel's existence/absence is the real claim, not the version
-   number (3d-modeller 2026-06-06: pinning Python 3.14 was only sound once a
-   `pyopengl_accelerate-3.1.10-cp314-…-macosx_11_0_arm64.whl` was confirmed on
-   PyPI). **An `abi3` (stable-ABI) wheel for the platform satisfies this for
-   EVERY newer CPython** — a `cp37-abi3-macosx_*_arm64` wheel installs fine on
-   3.14 with no `cpNNN` wheel and no compiler; do NOT flag "no cp314 wheel" when
-   an abi3 wheel covers it (tutorial-augmented-reality 2026-06-06: opencv-python
-   4.13 ships only `cp37-abi3` macOS-arm64 wheels, sound on Python 3.14). **Record that primary-registry source in the artifact itself, not a bare
+   interpreter**, "latest version exists" is NOT enough — the real claim is that
+   a binary wheel ships for the EXACT `(interpreter-ABI, platform)` targeted, or
+   the user needs a compiler; an `abi3` (stable-ABI) wheel satisfies it for EVERY
+   newer CPython, so never flag a missing `cpNNN` when abi3 covers it
+   (3d-modeller, tutorial-augmented-reality 2026-06-06). **Record that primary-registry source in the artifact itself, not a bare
    "verified"** — an uncited version re-triggers the same flag every verdict when
    the co-editor's mirrors disagree (3d-soft-engine 2026-06-06: an uncited
    `vite 8.0.16` was flagged twice before the row cited the npm dist-tag). When
