@@ -396,7 +396,9 @@ security surface, blast radius), produce:
   parse structured formats with a real parser (PyYAML/JSON, not regex), and require
   paired/path-correct fields, and **never let a check repair what it asserts** (a
   mirror/codegen gate running its generator IN PLACE fixes the staleness it exists to
-  detect and greens on the next run — regenerate out-of-tree and compare) — instead of
+  detect and greens on the next run — regenerate out-of-tree and compare; and enumerate its
+  OTHER consumers, since a second copy of the transform that no gate runs goes stale silently
+  (cdd-skills 2026-09-07: CONVERGED landed on a state the unrun pre-push hook refused)) — instead of
   patching one regex per round. Reactive per-regex patching invites the next paranoia
   level and burns ~3 rounds (raytracer-architecture 2026-05-31: a round-6 sweep
   converged at once). Two false-NEGATIVE hazards are worse than a false pass, because
