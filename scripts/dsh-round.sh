@@ -47,23 +47,8 @@ else
 fi
 task="$preamble"$'\n\n'"$(cat "$prompt_file")"
 
-# Fingerprint content, not just `git status` names: under the Path-scoped git
-# policy the tree is already dirty, so an edit to an existing modified file
-# leaves the porcelain status byte-identical.
-tree_fingerprint() {
-  {
-    git rev-parse HEAD 2>/dev/null || printf 'none\n'
-    git status --porcelain
-    git diff HEAD --binary 2>/dev/null || true
-    git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do
-      printf '%s\n' "$f"
-      /usr/bin/shasum -a 256 "$f" 2>/dev/null || printf 'unreadable\n'
-    done
-  } | /usr/bin/shasum -a 256 | awk '{print $1}'
-}
-
 head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
-fingerprint_before="$(tree_fingerprint)"
+fingerprint_before="$(rd_tree_fingerprint)"
 
 # dsh has no permission prompts; put the target-scoped git guard first on PATH so
 # shell git mutations cannot touch the reviewed checkout's git state.
@@ -83,7 +68,7 @@ fi
 
 if [ "$round" = "--verdict" ]; then
   head_after="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
-  if [ "$fingerprint_before" != "$(tree_fingerprint)" ]; then
+  if [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
     printf 'peerreview: dsh mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
       "$head_before" "$head_after" >&2
     exit 70

@@ -49,7 +49,14 @@ elif [ "$round" = "1" ] || [ "$round" = "--fresh" ]; then
 else
   exec_args=(exec resume --last)
 fi
-exec_args+=(-o "$out")
+# Publish the report only after the codex process exits. `-o` is written when a
+# session's final message lands, and codex can then roll into a second session
+# on the same prompt that keeps editing — so `<out>` appearing is not the end of
+# the round (2026-09-08 build-redis: the HOST committed at the first report and
+# the second session's edits landed during the verdict).
+partial="$out.partial"
+rm -f "$partial"
+exec_args+=(-o "$partial")
 
 # The Codex sandbox denies writes outside the workspace and (on this host)
 # network egress, so the PEER cannot reach git remotes or fetch dependencies;
@@ -59,6 +66,9 @@ exec_args+=(-o "$out")
 guard_dir="$(bash "$script_dir/git-guard.sh" "$(pwd -P)")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
+
+head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
+fingerprint_before="$(rd_tree_fingerprint)"
 
 rc=0
 if [ "$round" = "--verdict" ]; then
@@ -78,4 +88,11 @@ if [ "$rc" -eq 124 ]; then
   printf 'peerreview: Codex round timed out after %ss (override: CODEX_ROUND_TIMEOUT, 0=disable).\n' "$timeout_s" >&2
 fi
 [ "$rc" -eq 0 ] || { rd_fail "$rc" Codex "$out.transcript"; exit "$rc"; }
-[ -s "$out" ] || { printf 'peerreview: Codex returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }
+[ -s "$partial" ] || { printf 'peerreview: Codex returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }
+mv -f "$partial" "$out"
+
+if [ "$round" = "--verdict" ] && [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
+  printf 'peerreview: Codex mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
+    "$head_before" "$(git rev-parse HEAD 2>/dev/null || printf 'none')" >&2
+  exit 70
+fi

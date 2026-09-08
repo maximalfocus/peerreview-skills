@@ -597,16 +597,15 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
 4. **Re-verify independently**: read the real `git diff HEAD` AND `git status`
    (for new untracked files the PEER created — `git diff HEAD` only shows tracked
    changes; a new `Dockerfile` or generated file is invisible to it) — do not trust
-   the PEER's self-report. **Read the diff only AFTER the round has fully
-   completed** (the round-driver exited / its last message is written) — never
-   from a mid-flight working tree. A co-editor commonly tries-then-reverts
-   experimental edits *within* a round, so an in-progress tree can show a
-   transient "regression" the round itself discards before finishing;
-   re-verifying mid-flight manufactures phantom findings and wastes an
-   adjudication. (2026-06-06 raycaster-cpp: a mid-round read caught a
-   `wallSlice` `== 0`→`!= 0` experiment that the gate rejected and Codex
-   reverted before its CONVERGED — the final diff was clean.) Re-run the full
-   gate. Check no regression and no new defect was introduced. **Fact-check
+   the PEER's self-report. **Read the diff only AFTER the round-driver process
+   has exited** — never on the report appearing (the driver now withholds it
+   until exit): Codex can finish a session, emit its report, then roll into a
+   second session on the same prompt that keeps editing (build-redis
+   2026-09-08: a commit cut at the first report left four fixes to land during
+   the verdict, misattributed to the read-only PEER). A mid-flight tree also
+   shows try-then-revert experiments as phantom "regressions" (2026-06-06
+   raycaster-cpp: a `wallSlice` `== 0`→`!= 0` experiment, reverted before its
+   CONVERGED, cost an adjudication). Re-run the full gate. Check no regression and no new defect was introduced. **Fact-check
    claimed "corrections"**: the PEER may present a *regression* as a fix with
    confident wording (e.g. renaming a valid identifier/API/config element to a
    non-existent one and calling it a casing fix). Verify renamed names against
@@ -733,16 +732,18 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
 
 **Bound a round that cannot finish inside the driver deadline.** The driver
 writes `<out>` only when the round *ends*, so a killed round is total loss — and
-a mid-flight tree cannot be trusted (Step 4.4). Two briefs prevent most kills:
-**tell the PEER its sandbox has no network** (no `pip`/`uv`/build; a claim only
-settleable by building is itself a finding — record it and move on), and **make
-it append each verified finding to a `FINDINGS.md` in the workspace the moment
-it is verified**, never batched to the end, so a kill still yields a report. If
-it still overruns, split by explicit file scope and feed each later half the
-prior half's accepted findings. (vvah-memo 2026-09-08: two 25-min rounds died
-with edits and no report — one in a network-disabled build loop; the third,
-briefed both ways, returned 22 findings. doc-portal 2026-08-19: two bounded
-halves each finished where one 16-min round was killed.) **A killed round's
+a mid-flight tree cannot be trusted (Step 4.4). Three briefs prevent most kills:
+**no network** (no `pip`/`uv`/build; a claim only settleable by building is
+itself a finding — record it and move on); **where the source of truth is** —
+an unmounted source is "not on this machine, do not search outside the repo",
+or the PEER hunts the host for it (build-redis 2026-09-08: round 1 spent its
+30 min `rg`-ing `~/personal` and `/private/tmp` for the course; round 2, so
+briefed plus a report-by-minute-N budget, finished in 11); and **append each
+verified finding to a `FINDINGS.md` the moment it is verified**, never batched,
+so a kill still yields a report. If it still overruns, split by explicit file
+scope and feed each later half the prior half's accepted findings. (vvah-memo
+2026-09-08: two 25-min rounds died unreported; the third, briefed, returned 22
+findings. doc-portal 2026-08-19: two bounded halves finished where one was killed.) **A killed round's
 edits are disposed of, never adopted** — snapshot the diff outside the repo,
 reset to baseline, say so in the report. Expect the tree to look *finished*: a
 killed round can leave the whole gate green (jwt-library 2026-09-06: monthly cap

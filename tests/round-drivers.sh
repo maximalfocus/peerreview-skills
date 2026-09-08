@@ -102,6 +102,10 @@ for a in "$@"; do
   prev="$a"
 done
 [ -z "$out_file" ] || { [ "${CODEX_FAKE_EMPTY:-0}" = 1 ] || printf 'CODEX_OK\n' > "$out_file"; }
+# A report written while the peer keeps working must not surface as the round's
+# end: the driver publishes the final path only after this process exits.
+[ -z "$out_file" ] || [ "${CODEX_FAKE_LINGER:-0}" != 1 ] || { [ -e "${out_file%.partial}" ] && exit 92; sleep 1; }
+[ "${CODEX_FAKE_TOUCH:-0}" != 1 ] || printf 'peer-edit\n' >> file.txt
 FAKE_CODEX
 chmod +x "$tmp/bin/pi" "$tmp/bin/codex" "$tmp/bin/claude" "$root/scripts/peer-auth.sh" "$root/scripts/select-peer.sh" "$root/scripts/pi-round.sh" "$root/scripts/codex-round.sh" "$root/scripts/git-guard.sh"
 export PATH="$tmp/bin:/usr/bin:/bin"
@@ -194,8 +198,13 @@ contains "$tmp/codex.out" CODEX_OK
 contains "$CODEX_FAKE_LOG" "exec"
 contains "$CODEX_FAKE_LOG" "-C $tmp/repo"
 contains "$CODEX_FAKE_LOG" "-s workspace-write"
-contains "$CODEX_FAKE_LOG" "-o $tmp/codex.out"
+contains "$CODEX_FAKE_LOG" "-o $tmp/codex.out.partial"
+[ ! -e "$tmp/codex.out.partial" ] || fail "partial report left behind after the round"
 not_contains "$CODEX_FAKE_LOG" "resume"
+# The report file must appear only once the codex process has exited.
+rm -f "$tmp/codex-linger.out"
+CODEX_FAKE_LINGER=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex-linger.out" 1
+contains "$tmp/codex-linger.out" CODEX_OK
 
 : > "$CODEX_FAKE_LOG"
 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 2
@@ -210,6 +219,15 @@ contains "$CODEX_FAKE_LOG" "-s read-only"
 not_contains "$CODEX_FAKE_LOG" "resume"
 not_contains "$CODEX_FAKE_LOG" "workspace-write"
 contains "$tmp/codex.stdin" "Read-only verdict round"
+# A verdict round that moves the tree fails loud and is left for adjudication.
+rc=0; CODEX_FAKE_TOUCH=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict 2>"$tmp/codex.err" || rc=$?
+[ "$rc" -eq 70 ] || fail "verdict that mutated the tree was not refused with 70 (rc=$rc)"
+contains "$tmp/codex.err" "mutated the repo during a read-only verdict"
+grep -q peer-edit "$tmp/repo/file.txt" || fail "verdict mutation was reverted instead of left for adjudication"
+git -C "$tmp/repo" checkout -q -- file.txt
+# An edit round moving the tree is the normal case and is not refused.
+CODEX_FAKE_TOUCH=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1
+git -C "$tmp/repo" checkout -q -- file.txt
 
 # A verdict prompt with no charter is refused before the peer is launched: a
 # CONVERGED against it would satisfy the contract with nothing.

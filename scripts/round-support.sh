@@ -80,3 +80,22 @@ rd_require_charter() {
   printf 'peerreview: verdict prompt %s carries no charter (no "## Acceptance criteria" section and no "- [ ] ACn" line) — a verdict against it would prove nothing; refusing to launch the peer.\n' "$prompt_file" >&2
   exit 65
 }
+
+# rd_tree_fingerprint
+#   Content fingerprint of the working tree (HEAD, porcelain status, tracked
+#   diff, untracked file hashes). Fingerprint content, not just `git status`
+#   names: under the Path-scoped git policy the tree is already dirty, so an
+#   edit to an existing modified file leaves the porcelain status byte-identical.
+#   Drivers compare it before/after a read-only verdict; a change is not
+#   auto-reverted — the HOST adjudicates it before accepting any verdict.
+rd_tree_fingerprint() {
+  {
+    git rev-parse HEAD 2>/dev/null || printf 'none\n'
+    git status --porcelain
+    git diff HEAD --binary 2>/dev/null || true
+    git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do
+      printf '%s\n' "$f"
+      /usr/bin/shasum -a 256 "$f" 2>/dev/null || printf 'unreadable\n'
+    done
+  } | /usr/bin/shasum -a 256 | awk '{print $1}'
+}
