@@ -210,31 +210,28 @@ For discover→validate→mutate automation, test validation/status failure sepa
 empty/clean can mutate corrupt targets, so require validation first; CLI mocks must preserve stdout data vs stderr diagnostics—merged non-empty output is not inventory.
 For immutable/content-addressed filesystem persistence, byte equality and a one-time path check are a narrow oracle: execute same-byte file and outside-symlink swaps between check→open, a replacement during reading, and a replacement before failure cleanup. Cleanup must prove the path still names the file this attempt created—never unlink merely because that path was once ours. Do not overfit identity to one OS: `(device,inode)` can be immediately recycled on ext4, while full path-`lstat` vs handle-`fstat` tokens differ on modern Windows; bind path↔handle with `samestat`, compare generation-sensitive metadata only on the same stat surface, and require the live OS matrix. A descriptor retained to prove ownership can itself block `os.replace` on Windows: when replace requires closing the source, verify its bytes and capture a same-surface generation token while pinned, close only at that boundary, recheck the token, replace, then read back the destination; gate unlink-of-open-file injections to OSes that permit them, never the production flow. (ArchSift PR #38 and Docscan PR #14, 2026-08-08–09: macOS-only green hid CRLF goldens, replacement deletion/reuse, ext4 inode recycling, Windows stat-surface drift, and open-source replace failure.) For any new byte-exact golden extension, extend `.gitattributes` with `text eol=lf`; an LF local checkout does not prove a Windows checkout.
 For generic `code` repos whose verification is a worked example, fake peer,
-fake service, or local smoke, treat the oracle as narrow until disproved. If
-the production flow is stateful over repeated units (blocks, chunks, messages,
-pages, records, peers), probe at least one multi-unit continuation case and
-assert both progress to the next unit and final completion state. A single-unit
-smoke can pass while the pipeline stalls after the first unit. And when such a
-structure has a **reset/reclaim** op meant to restore its initial state
-(free-all / clear / shrink / release), probe that reset from a *grown* state
-(past initial capacity), not just from within it — grow-then-reset is distinct
-code from reset-within-initial and is where round-trip-to-pristine bugs hide.
-(2026-06-28 tutorial-memory-allocator-c: the green suite asserted free-all →
-single pristine block only in the never-grew case; the grow-then-free-all path
-leaked a whole page — a shrink-threshold off-by-one plus a `grow_heap`
-page over-count — both caught only by the cross-vendor pass.) A related
-narrow-oracle axis: when the artifact **parses or serves a structured input
-with distinct regions** (an HTTP request's request-line / headers / body; a
-framed protocol's header / payload; a file format's magic / metadata / data),
-the happy-path oracle usually exercises only ONE region — a GET-only suite
-never reads the request **body**, so a from-scratch server that mis-slices its
-input stream (`wsgi.input` = the whole raw request vs. only the bytes after the
-blank line) passes every test yet corrupts any body reader. Probe at least one
-**body/payload-bearing** input (a POST with a `Content-Length` body) explicitly.
-(2026-07-03 tutorial-web-server-python: a green GET-only suite missed
-`wsgi.input` carrying the entire raw request instead of just the body; the
-cross-vendor pass caught it, plus a second-order bug in the fix's `exc_info`
-replace-before-send guard.) For terminal/web-terminal changes that enable **OSC 52 clipboard output**, the user-selection happy path is a narrow security oracle: execute a pane/application-originated OSC 52 write (and read-back query when supported) and prove it cannot mutate or exfiltrate the host clipboard while the user's explicit selection still can. A green copy test under tmux `set-clipboard on` misses clipboard poisoning; `external` preserves tmux-owned selections while rejecting pane-app access. (2026-07-24 agent-sandbox: bidirectional copy passed, but this adversarial probe forced `on` → `external`.)
+fake service, local smoke, or a self-authored fixture/golden suite, treat the
+oracle as narrow until disproved — and make the narrowness *executable* before
+reading for it: for each rule the source states (a tie-break order, reset-vs-
+preserve of a counter, a streak reset, a threshold), mutate the solution in
+memory to violate it and run the whole suite; a mutant that passes is a fixture
+gap, closed by a source-derived fixture that rejects it. (2026-09-08
+tutorial-build-your-own-load-balancer: a judge-accepted, all-green suite hid 12
+such gaps — pool-order ties, POOL-resets vs DRAIN/DOWN-preserves, 3xx/4xx
+streak resets — found over two rounds with zero code changes.) Three probes
+recur whatever the mutants say: (1) a flow stateful over repeated units (blocks,
+chunks, messages, pages, records, peers) — probe a multi-unit continuation and
+assert progress AND final state; a single-unit smoke passes while the pipeline
+stalls after unit one. (2) A **reset/reclaim** op (free-all / clear / shrink /
+release) — probe it from a *grown* state, past initial capacity, where
+round-trip-to-pristine bugs hide (2026-06-28 tutorial-memory-allocator-c:
+never-grew free-all was green; grow-then-free-all leaked a page via a
+shrink-threshold off-by-one plus a `grow_heap` over-count). (3) Input with
+**distinct regions** (request-line / headers / body; header / payload; magic /
+metadata / data) — the happy path exercises one region, so probe a
+**body/payload-bearing** input explicitly (2026-07-03 tutorial-web-server-python:
+a GET-only suite missed `wsgi.input` carrying the whole raw request, plus a
+second-order `exc_info` bug in the fix). For terminal/web-terminal changes that enable **OSC 52 clipboard output**, the user-selection happy path is a narrow security oracle: execute a pane/application-originated OSC 52 write (and read-back query when supported) and prove it cannot mutate or exfiltrate the host clipboard while the user's explicit selection still can. A green copy test under tmux `set-clipboard on` misses clipboard poisoning; `external` preserves tmux-owned selections while rejecting pane-app access. (2026-07-24 agent-sandbox: bidirectional copy passed, but this adversarial probe forced `on` → `external`.)
 For hostname/domain security classifiers, normalize DNS-equivalent inputs before tiering: case-fold
 ASCII names and strip a single trailing root dot, then parity-test mixed case, trailing-dot, and
 suffix-boundary near misses across implementations. Otherwise one blocked destination can fall from
