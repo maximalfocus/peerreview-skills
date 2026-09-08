@@ -732,22 +732,21 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    round via `git checkout`/`stash` from `HEAD` instead.)*
 
 **Bound a round that cannot finish inside the driver deadline.** The driver
-writes `<out>` only when the round *ends*, so a killed round is total loss, not
-partial progress — and a mid-flight tree cannot be trusted (Step 4.4). When a
-first attempt overruns, or the artifact is plainly too large for one budget,
-split the round by explicit file scope, name that scope in the brief, and tell
-the PEER to report even if it has not exhausted it. Feed each later half the
-prior half's own accepted findings so the budget goes to unexplored ground.
-(2026-08-19 doc-portal-ai-platform: a 16-minute round over 13 diagrams was
-killed with 22 files edited and no report; two bounded halves each finished
-inside 15 minutes and rediscovered its findings.) **A killed round's edits are
-disposed of, never adopted** — snapshot the diff outside the repo, reset to the
-baseline, and say so in the report. Expect the tree to look *finished*: a
-quota-killed round can leave the entire gate green, and adopting that
-unreported, unverdicted diff publishes it as reviewed. (2026-09-06
-tutorial-build-a-jwt-library: Codex hit a monthly cap mid-round-1 having edited
-13 files; the full gate passed, including probes it had added itself, with no
-report and no verdict.)
+writes `<out>` only when the round *ends*, so a killed round is total loss — and
+a mid-flight tree cannot be trusted (Step 4.4). Two briefs prevent most kills:
+**tell the PEER its sandbox has no network** (no `pip`/`uv`/build; a claim only
+settleable by building is itself a finding — record it and move on), and **make
+it append each verified finding to a `FINDINGS.md` in the workspace the moment
+it is verified**, never batched to the end, so a kill still yields a report. If
+it still overruns, split by explicit file scope and feed each later half the
+prior half's accepted findings. (vvah-memo 2026-09-08: two 25-min rounds died
+with edits and no report — one in a network-disabled build loop; the third,
+briefed both ways, returned 22 findings. doc-portal 2026-08-19: two bounded
+halves each finished where one 16-min round was killed.) **A killed round's
+edits are disposed of, never adopted** — snapshot the diff outside the repo,
+reset to baseline, say so in the report. Expect the tree to look *finished*: a
+killed round can leave the whole gate green (jwt-library 2026-09-06: monthly cap
+mid-round, 13 files edited, gate green including its own probes, no report).
 
 **Non-progress abort:** if a round produces no substantive improvement against
 open findings (or oscillates), stop the loop and report — do not keep spending.
@@ -819,15 +818,15 @@ re-verified):
     Step 6 push is unconditional regardless; the absent CONVERGED line is the
     residual the user accepts when re-invoking, not silently inherited as
     "converged". Never re-ladder to another peer while the resolved side is blocked.
-  - **The verdict prompt must make READING explicit — a read-only sandbox still
-    permits reading every file with the PEER's Read tool; "do not run commands"
-    means no mutating commands, not "cannot read" (Reporting-Platform-CC-Sandbox
-    architecture 2026-08-09). A verdict returned as NOT CONVERGED premised on
-    "review is impossible because I may not run commands" is a wrong-premise
-    verdict, the same class as the gate-count miscount rule above: re-dispatch
-    the verdict once with the corrected instruction (state plainly that reading
-    is allowed and expected; only edits/commits/pushes/remotes are forbidden),
-    never treat it as a real residual and never edit the artifact to satisfy it.
+  - **The verdict prompt must make READING explicit, in its first paragraph,
+    every time** — a read-only sandbox still permits reading every file and
+    running read-only commands; "do not run commands" means no mutating
+    commands, not "cannot read". A NOT CONVERGED premised on "review is
+    impossible because I may not run commands" is a wrong-premise verdict (same
+    class as the gate-count miscount above): re-dispatch once with the
+    permission restated, never treat it as a residual, never edit the artifact
+    to satisfy it. It recurs when the line is shortened (CC-Sandbox 2026-08-09;
+    vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
 
 Anything not fixable without changing host state / running real
 infrastructure / external review is **not** a blocker — it is recorded as a

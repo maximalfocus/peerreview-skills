@@ -81,6 +81,17 @@ non-goal. Citation-checking alone never catches omissions. (legacy-portal-infra:
 an entire `intranet-gen` stack — its own VPC with two CIDRs — was missing
 because the evidence base was built claim-first, never inventory-first.)
 
+The same lens applies to the tree's **third-party content**: sweep every tracked
+file for named external sources, copyright lines other than the project's,
+"vendored / derived from / adapted from" phrasing, external attribution URLs,
+and every generated or golden data file — then list each hit as a decision per
+item (verbatim copy / derived data / adapted text) and disclose the criteria.
+A "not a proof of completeness" disclaimer is not closure and a verdict will say
+so. (vvah-memo 2026-09-08: three consecutive verdicts each surfaced one more
+item — an OASIS schema, a MITRE-derived map, a Contributor Covenant adaptation —
+because the sweep matched "derived/vendored" and named sources but not "adapted
+from" or attribution URLs; the broadened sweep found exactly those three.)
+
 ### Lens 5 — Provisioned ≠ deployed ≠ live (state-of-the-world qualifiers)
 
 Where the artifact asserts something *runs* somewhere, demand the runtime

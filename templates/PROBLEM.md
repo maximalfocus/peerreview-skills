@@ -48,7 +48,10 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
      invalid" for VALID HTML5 (figure, figcaption, section, nav, header,
      footer, article, aside, details, summary, mark, time, main) — filter
      those out (grep -v) or the gate fail-closes on a conformant artifact;
-     fail only on real "parser error" lines after that filter.
+     fail only on real "parser error" lines after that filter. An HTML
+     *fragment* a publisher wraps at publish time (a Claude Artifact) must NOT
+     gain `<!doctype>`/`<html>`/`<body>` — say so in the PEER brief, or a
+     co-edit round "fixes" it into a nested document (vvah-memo 2026-09-08).
      Source+rendered-artifact repos (Mermaid/PlantUML/Graphviz/etc.): do
      NOT stop at "renders without error" — a source edited without
      regenerating its committed image ships a STALE artifact that passes
