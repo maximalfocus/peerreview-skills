@@ -11,7 +11,8 @@ git -C "$tmp/repo" config user.name Test
 printf 'base\n' > "$tmp/repo/file.txt"
 git -C "$tmp/repo" add file.txt
 git -C "$tmp/repo" commit -qm base
-printf 'review\n' > "$tmp/prompt"
+printf 'review\n\n## Acceptance criteria\n\n- [ ] AC1 — fixture\n' > "$tmp/prompt"
+printf 'review without a charter\n' > "$tmp/prompt-nocharter"
 
 cat > "$tmp/bin/pi" <<'FAKE_PI'
 #!/usr/bin/env bash
@@ -209,6 +210,19 @@ contains "$CODEX_FAKE_LOG" "-s read-only"
 not_contains "$CODEX_FAKE_LOG" "resume"
 not_contains "$CODEX_FAKE_LOG" "workspace-write"
 contains "$tmp/codex.stdin" "Read-only verdict round"
+
+# A verdict prompt with no charter is refused before the peer is launched: a
+# CONVERGED against it would satisfy the contract with nothing.
+: > "$CODEX_FAKE_LOG"
+rc=0; "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt-nocharter" "$tmp/codex.out" --verdict 2>"$tmp/codex.err" || rc=$?
+[ "$rc" -eq 65 ] || fail "charter-less verdict prompt was not refused with 65 (rc=$rc)"
+[ ! -s "$CODEX_FAKE_LOG" ] || fail "charter-less verdict prompt still launched the peer"
+contains "$tmp/codex.err" "carries no charter"
+# Edit rounds are not gated: the round-1 brief carries the charter by Step 4.2,
+# but the driver only refuses the verdict, where a missing charter is fatal.
+: > "$CODEX_FAKE_LOG"
+"$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt-nocharter" "$tmp/codex.out" 1
+contains "$CODEX_FAKE_LOG" "exec"
 
 base_head="$(git -C "$tmp/repo" rev-parse HEAD)"
 CODEX_FAKE_GIT_MUTATE=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1

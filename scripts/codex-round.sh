@@ -23,6 +23,7 @@ timeout_s="${CODEX_ROUND_TIMEOUT:-1800}"
 # Deadline enforcement lives in one shared helper: the previous per-driver
 # fallback ran the peer UNBOUNDED whenever coreutils was absent.
 . "$script_dir/round-support.sh"
+rd_require_charter "$prompt_file" "$round"
 
 add_dir_args=()
 add_dirs="${PEERREVIEW_ADD_DIRS:-${CODEX_ADD_DIRS:-}}"

@@ -19,6 +19,7 @@ timeout_s="${PI_ROUND_TIMEOUT:-1800}"
 # Deadline enforcement lives in one shared helper: the previous per-driver
 # fallback ran the peer UNBOUNDED whenever coreutils was absent.
 . "$script_dir/round-support.sh"
+rd_require_charter "$prompt_file" "$round"
 
 # Keep peer sessions separate from the user's interactive Pi history. A fresh
 # round creates the latest session in this repo-specific directory; later rounds

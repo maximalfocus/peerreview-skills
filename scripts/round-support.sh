@@ -63,3 +63,20 @@ rd_fail() {
     printf 'peerreview: %s round failed (rc=%s); transcript %s is empty.\n' "$label" "$rc" "$transcript" >&2
   fi
 }
+
+# rd_require_charter <prompt_file> <round>
+#   A --verdict prompt must carry the active charter (templates/PROBLEM.md's
+#   "## Acceptance criteria" section, or its "- [ ] ACn" lines). A verdict
+#   returned against a prompt that never carried the charter satisfies the
+#   convergence contract with nothing — the same failure class as rd_run
+#   dropping stdin, reached from the HOST side: on 2026-09-08
+#   (tutorial-build-a-ci-runner) a HOST slicing bug shipped a 1.4 KB verdict
+#   prompt with no charter, no ACs and no spec, and the PEER returned CONVERGED.
+#   Refuse before the peer is launched; exit 65 (EX_DATAERR).
+rd_require_charter() {
+  local prompt_file="$1" round="${2:-}"
+  [ "$round" = "--verdict" ] || return 0
+  if grep -Eq '^## Acceptance criteria|^- \[[ xX]\] AC[0-9]+' "$prompt_file"; then return 0; fi
+  printf 'peerreview: verdict prompt %s carries no charter (no "## Acceptance criteria" section and no "- [ ] ACn" line) — a verdict against it would prove nothing; refusing to launch the peer.\n' "$prompt_file" >&2
+  exit 65
+}

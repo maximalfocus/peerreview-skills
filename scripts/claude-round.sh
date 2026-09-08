@@ -21,6 +21,7 @@ timeout_s="${CLAUDE_ROUND_TIMEOUT:-1800}"
 # Deadline enforcement lives in one shared helper: the previous per-driver
 # fallback ran the peer UNBOUNDED whenever coreutils was absent.
 . "$script_dir/round-support.sh"
+rd_require_charter "$prompt_file" "$round"
 
 # Anchor the peer session per repo so rounds 2+ and the verdict continue the
 # same conversation, the way the Pi and Codex drivers do.
