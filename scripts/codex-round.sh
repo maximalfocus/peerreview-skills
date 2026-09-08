@@ -62,7 +62,7 @@ real_git="$(command -v git)"
 rc=0
 if [ "$round" = "--verdict" ]; then
   {
-    printf '%s\n' 'Read-only verdict round: do not edit files and do not run commands. Return only the verdict line.'
+    printf '%s\n' 'Read-only verdict round: do not edit files and do not run mutating commands. Reading every file and running read-only probes is allowed and expected. Report findings with file:line, then end with the verdict line.'
     cat "$prompt_file"
   } > "$out.prompt"
   prompt_input="$out.prompt"
