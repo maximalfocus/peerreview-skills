@@ -44,8 +44,33 @@ lines = src.split('\n'); out = []; i = 0; n = len(lines)
 LIST = re.compile(r'^(\s*)([-*+]|\d+\.)\s+')
 def fence(l): return l.lstrip().startswith('```') or l.lstrip().startswith('~~~')
 def block_start(l):
-    return (l.startswith('#') or l.lstrip().startswith('|') or fence(l)
+    return (l.startswith('#') or l.lstrip().startswith('|') or l.lstrip().startswith('>') or fence(l)
             or l.strip() == '' or l.startswith('<') or l.startswith('$ARGUMENTS'))
+MARKER = re.compile(r'^\s*(?:[-*+]|\d+\.|#|>|\|)(?:\s|$)')
+def wrap_safe(text, lead, indent):
+    """Wrap so that no continuation line begins with a token Markdown would read as a list
+    marker, heading, quote, or table row; such a token is pulled onto the previous line, and if
+    that line then overflows, the previous line's last word comes down with the token instead."""
+    lines = textwrap.wrap(text, width=W, initial_indent=lead, subsequent_indent=indent,
+                          break_long_words=False, break_on_hyphens=False)
+    k = 1
+    while k < len(lines):
+        if MARKER.match(lines[k]):
+            body = lines[k].strip(); token, _, rest = body.partition(' ')
+            prev = lines[k - 1]
+            if len(prev) + 1 + len(token) <= W:
+                lines[k - 1] = prev + ' ' + token
+                tail = rest
+            else:
+                head, _, last = prev.rpartition(' ')
+                lines[k - 1] = head
+                tail = last + ' ' + token + (' ' + rest if rest else '')
+            remainder = ' '.join([tail] + [x.strip() for x in lines[k + 1:]])
+            lines = lines[:k] + (textwrap.wrap(remainder, width=W, initial_indent=indent, subsequent_indent=indent,
+                                               break_long_words=False, break_on_hyphens=False) if remainder.strip() else [])
+            continue
+        k += 1
+    return lines
 # front matter: fold only description / allowed-tools when over width
 if lines and lines[0] == '---':
     j = 1
@@ -78,8 +103,7 @@ while i < n:
         if len(re.match(r'^\s*', nl).group(0)) < len(indent): break
         block.append(nl.strip()); j += 1
     text = ' '.join(block)
-    out.extend(textwrap.wrap(text, width=W, initial_indent=lead, subsequent_indent=indent,
-                             break_long_words=False, break_on_hyphens=False))
+    out.extend(wrap_safe(text, lead, indent))
     i = j
 new = '\n'.join(out)
 def body(t):  # everything after the front matter, as words: rewrapping must not change a single one
