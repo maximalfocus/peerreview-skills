@@ -144,6 +144,13 @@ case "$cmd" in
     tree="$(git status --porcelain --untracked-files=all --ignore-submodules=none)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
     [ -z "$tree" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
     [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
+    # Ignored files are invisible to status, yet a checkout or squash silently
+    # overwrites one whose path the base or reviewed tree tracks and HEAD does
+    # not. Refuse that before any write or gh call, and keep the file.
+    clobber="$({ git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$base"
+                 git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$branch"; } | sort -u \
+               | while IFS= read -r f; do [ -e "$f" ] && printf '%s\n' "$f"; done; true)"
+    [ -z "$clobber" ] || { printf 'peerreview: these paths exist locally but are tracked by the base or reviewed tree and not by HEAD, so landing would overwrite them; move them aside and re-run:\n%s\n' "$clobber" >&2; exit 1; }
     # Resolve branch refs, never a same-named tag. An advanced/diverged base
     # must be reviewed first: merging it here could introduce unreviewed changes.
     base_oid="$(git rev-parse --verify "refs/heads/$base^{commit}")"
@@ -211,12 +218,12 @@ case "$cmd" in
                "$delivery" "$pr_url" "$pr_base" "$base" "$pr_title" "$subject" "$pr_draft" "$body_state" >&2; exit 1; }
     fi
     if git show-ref --verify --quiet "refs/heads/$delivery"; then
-      git checkout -q "$delivery"
+      git checkout -q --no-overwrite-ignore "$delivery"
     elif [ -n "$delivery_oid" ]; then
-      git checkout -q -b "$delivery" "$delivery_oid"
+      git checkout -q --no-overwrite-ignore -b "$delivery" "$delivery_oid"
     else
-      git checkout -q -b "$delivery" "$base_oid"
-      git merge --squash "$review_oid" >/dev/null
+      git checkout -q --no-overwrite-ignore -b "$delivery" "$base_oid"
+      git merge --squash --no-overwrite-ignore "$review_oid" >/dev/null
       git commit -q -F "$msgfile" || {
         printf 'peerreview: commit failed on %s; staged review changes are retained. Complete the commit with the message file, then re-run land.\n' "$delivery" >&2; exit 1; }
     fi

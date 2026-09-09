@@ -338,6 +338,28 @@ base_unchanged 'hook-created untracked file'
 if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened with a hook-created untracked file"; fi
 if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-created untracked file was pushed past"; fi
 
+# An ignored local file whose path the base tracks (and the review removed)
+# would be silently overwritten by the delivery checkout: refused before any
+# write or gh call, with the file intact.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+git -C "$repo" checkout -q main
+printf 'shared\n' > "$repo/local.txt"; printf 'local.txt\n' > "$repo/.gitignore"
+git -C "$repo" add -f local.txt .gitignore; git -C "$repo" commit -qm 'chore: track a file the ignore list also names'
+git -C "$repo" push -q origin main
+git -C "$repo" checkout -q peerreview/slug
+git -C "$repo" merge -q --no-edit main >/dev/null
+git -C "$repo" rm -q local.txt; git -C "$repo" commit -qm 'peerreview: round 3'
+printf 'my local work\n' > "$repo/local.txt"
+[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "test bug: the ignored file shows in status"
+refs_before="$(git -C "$repo" show-ref)"
+err="$(bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" && fail "landed over an ignored local file"
+case "$err" in *"exist locally"*) ;; *) fail "ignored-file collision refused for the wrong reason: $err" ;; esac
+[ "$(cat "$repo/local.txt")" = "my local work" ] || fail "the ignored local file was overwritten"
+[ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "ignored-file refusal wrote refs"
+[ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "ignored-file refusal moved the checkout"
+[ ! -e "$GH_FAKE_LOG" ] || fail "gh was called before the ignored-file refusal"
+
 # The destination that is inspected is the only one the push writes.
 fresh "$vocab"
 printf 'feat: land the review\n' > "$msg"
