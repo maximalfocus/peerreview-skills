@@ -18,6 +18,12 @@ Plain paragraph: $long
 - list item: $long
   continued on a second line that also belongs to the item.
 1. numbered — ${long}
+   - nested bullet: ${long}
+     \`\`\`sh
+     echo "indented fence: $long"
+     \`\`\`
+   The item's trailing paragraph, indented like its text, stays with it.
+Unindented text after the list starts a new paragraph.
 
 | col | $long |
 |---|---|
@@ -30,7 +36,7 @@ cp "$tmp/a.md" "$tmp/orig.md"
 if bash "$script" check "$tmp/a.md" >/dev/null; then echo "check must fail on long lines" >&2; exit 1; fi
 if out="$(bash "$script" fix "$tmp/a.md")"; then echo "fix must exit 1 while hand-work remains" >&2; exit 1; fi
 # prose and list items are wrapped, every word kept
-awk 'NR>1 && /^---$/{fm=0; next} NR==1{fm=1; next} !fm && !/^\|/ && !/^#/ && !/^echo/ && length>100 {print "still long: " $0; bad=1} END{exit bad}' "$tmp/a.md"
+awk 'NR>1 && /^---$/{fm=0; next} NR==1{fm=1; next} /^[[:space:]]*```/{code=!code; next} !fm && !code && !/^\|/ && !/^#/ && length>100 {print "still long: " $0; bad=1} END{exit bad}' "$tmp/a.md"
 [ "$(sed '1,/^---$/d' "$tmp/orig.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" = "$(sed '1,/^---$/d' "$tmp/a.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" ] || { echo "rewrap changed the words" >&2; exit 1; }
 grep -q '^description: >-$' "$tmp/a.md" || { echo "long description must be folded" >&2; exit 1; }
 grep -q '^argument-hint: "\[x\]"$' "$tmp/a.md" || { echo "short front matter keys must be untouched" >&2; exit 1; }
@@ -38,6 +44,9 @@ grep -q '^argument-hint: "\[x\]"$' "$tmp/a.md" || { echo "short front matter key
 for want in ":[0-9]+:# Demo" ":[0-9]+:\\| col" ":[0-9]+:echo"; do echo "$out" | grep -qE "WIDE: .*$want" || { echo "fix must report remaining hand-work ($want): $out" >&2; exit 1; }; done
 grep -q "^| col | $long |$" "$tmp/a.md" || { echo "table rows must be left alone" >&2; exit 1; }
 grep -q "^echo \"$long\"$" "$tmp/a.md" || { echo "code lines must be left alone" >&2; exit 1; }
+grep -q "^     echo \"indented fence: $long\"$" "$tmp/a.md" || { echo "an indented fence must be left alone" >&2; exit 1; }
+grep -q '^   - nested bullet: word' "$tmp/a.md" || { echo "a nested bullet must keep its indent" >&2; exit 1; }
+grep -q '^Unindented text after the list starts a new paragraph.$' "$tmp/a.md" || { echo "a less-indented line must not merge into the item" >&2; exit 1; }
 # a second fix is a no-op, and a clean file passes check
 cp "$tmp/a.md" "$tmp/b.md"; bash "$script" fix "$tmp/b.md" >/dev/null 2>&1 || true; cmp -s "$tmp/a.md" "$tmp/b.md" || { echo "fix must be idempotent" >&2; exit 1; }
 printf '# ok\n\nshort line — with a multibyte dash and an arrow → still counted as characters.\n' > "$tmp/c.md"

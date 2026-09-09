@@ -42,8 +42,9 @@ path = sys.argv[1]; W = 100
 src = open(path, encoding='utf-8').read()
 lines = src.split('\n'); out = []; i = 0; n = len(lines)
 LIST = re.compile(r'^(\s*)([-*+]|\d+\.)\s+')
+def fence(l): return l.lstrip().startswith('```') or l.lstrip().startswith('~~~')
 def block_start(l):
-    return (l.startswith('#') or l.lstrip().startswith('|') or l.startswith('```')
+    return (l.startswith('#') or l.lstrip().startswith('|') or fence(l)
             or l.strip() == '' or l.startswith('<') or l.startswith('$ARGUMENTS'))
 # front matter: fold only description / allowed-tools when over width
 if lines and lines[0] == '---':
@@ -61,20 +62,23 @@ if lines and lines[0] == '---':
 code = False
 while i < n:
     l = lines[i]
-    if l.startswith('```'):
+    if fence(l):
         code = not code; out.append(l); i += 1; continue
     if code or block_start(l):
         out.append(l); i += 1; continue
     m = LIST.match(l)
-    indent = ' ' * len(m.group(0)) if m else re.match(r'^\s*', l).group(0)
+    lead = re.match(r'^\s*', l).group(0)
+    indent = ' ' * len(m.group(0)) if m else lead
+    # A continuation line belongs to this paragraph or item only while it is indented at least as
+    # deep as the item's text (a less-indented line starts something else, never merge it).
     block = [l.strip()]; j = i + 1
     while j < n:
         nl = lines[j]
         if block_start(nl) or LIST.match(nl): break
+        if len(re.match(r'^\s*', nl).group(0)) < len(indent): break
         block.append(nl.strip()); j += 1
     text = ' '.join(block)
-    lead = re.match(r'^\s*', l).group(0)
-    out.extend(textwrap.wrap(text, width=W, initial_indent='' if m else lead, subsequent_indent=indent,
+    out.extend(textwrap.wrap(text, width=W, initial_indent=lead, subsequent_indent=indent,
                              break_long_words=False, break_on_hyphens=False))
     i = j
 new = '\n'.join(out)
