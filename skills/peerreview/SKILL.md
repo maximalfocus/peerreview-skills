@@ -719,13 +719,9 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    Codex's round-1 fix aligned to the blog and the `= 0` form also removed a real
    `u32` underflow panic on two-bullets-one-enemy. Settle the value against the
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
-5. **Commit the round**: `peerreview: round <N> — <one-line summary>`; but when the
-   reviewed repo declares a commit-subject convention (`CLAUDE.md`/`AGENTS.md` types,
-   commitlint) it binds every branch commit and the PEER's verdict reads them, so
-   compose in that convention keeping `round <N>` (`chore(peerreview): <summary> in
-   round N`); reword only unpushed commits, a pushed one is a residual (idd-skills
-   2026-09-09: an 87-char `peerreview:` subject cost a NOT CONVERGED round). Co-author
-   HOST reviewer + PEER co-editor, naming the actual two models and tools. If a round makes things
+5. **Commit the round**: `peerreview: round <N> — <one-line summary>`; but when the reviewed repo declares a commit-subject convention (`CLAUDE.md`/`AGENTS.md` types, commitlint) it binds every branch commit and the PEER's verdict reads them, so compose in that convention keeping `round <N>` (`chore(peerreview): <summary> in round N`);
+   reword only unpushed commits, a pushed one is a residual (idd-skills 2026-09-09: an 87-char `peerreview:` subject cost a NOT CONVERGED round).
+   Co-author HOST reviewer + PEER co-editor, naming the actual two models and tools. If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
