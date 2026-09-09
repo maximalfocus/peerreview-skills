@@ -396,6 +396,14 @@ published="$(git -C "$origin" rev-parse evolve/slug)"
 if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "opened a PR although evolve/slug moved during landing"; fi
 rm "$repo/.git/hooks/reference-transaction"
 
+# A reviewed type change (file to symlink) is git's ordinary job, not an
+# ignored-file collision: it lands.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+git -C "$repo" rm -q file.txt; printf 'target\n' > "$repo/target.txt"; ln -s target.txt "$repo/file.txt"
+git -C "$repo" add target.txt file.txt; git -C "$repo" commit -qm 'peerreview: round 3'
+accepts "a review that turns a file into a symlink" "feat: land the review"
+
 # The destination that is inspected is the only one the push writes.
 fresh "$vocab"
 printf 'feat: land the review\n' > "$msg"

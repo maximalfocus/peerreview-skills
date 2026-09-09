@@ -146,9 +146,10 @@ case "$cmd" in
     [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
     # Ignored files are invisible to status, yet a checkout or squash silently
     # overwrites one whose path the base or reviewed tree tracks and HEAD does
-    # not. Refuse that before any write or gh call, and keep the file.
-    clobber="$({ git -c core.quotePath=false diff --name-only --diff-filter=AT HEAD "refs/heads/$base"
-                 git -c core.quotePath=false diff --name-only --diff-filter=AT HEAD "refs/heads/$branch"; } | sort -u \
+    # not (paths HEAD tracks, type changes included, are git's ordinary job).
+    # Refuse that before any write or gh call, and keep the file.
+    clobber="$({ git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$base"
+                 git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$branch"; } | sort -u \
                | while IFS= read -r f; do
                    if [ -e "$f" ]; then printf '%s\n' "$f"; continue; fi
                    p="$f"; while [ "${p%/*}" != "$p" ]; do p="${p%/*}"; [ -e "$p" ] && [ ! -d "$p" ] && { printf '%s\n' "$f"; break; }; done
@@ -223,8 +224,8 @@ case "$cmd" in
     # The squash is built from objects, never from the checkout — the reviewed
     # tree on the recorded base, ref created atomically (must not exist) — so
     # another session switching this shared checkout mid-run cannot make the
-    # commit land on the base. No hook runs here: every round commit already ran
-    # them, and the provider re-creates the commit at landing anyway.
+    # commit land on the base. No commit hook runs here: every round commit
+    # already ran them, and the provider re-creates the commit at landing.
     if [ -z "$delivery_oid" ]; then
       delivery_oid="$(git stripspace < "$msgfile" | git commit-tree "$(tree_of "$review_oid")" -p "$base_oid")"
       git update-ref "refs/heads/$delivery" "$delivery_oid" "" \
