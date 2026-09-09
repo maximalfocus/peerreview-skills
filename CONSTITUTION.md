@@ -91,20 +91,21 @@ With the `evolution/` logs gone (Article 1) the skill files are the sole home an
 **150** lines. A line is at most **100** characters in every skill file, this file, and `CLAUDE.md`
 — a line count only measures size while lines are bounded, and a 2,000-character line hid twenty
 lines' worth of guidance from this gate (2026-09-10). Over cap or over width → compress in the same
-change or revert; rewrapping to longer lines is not compression. Gate:
+change or revert; rewrapping to longer lines is not compression. `scripts/width.sh fix` rewraps
+prose and folds front matter without changing a word and lists the headings, table rows, and code
+lines that still need a hand; `check` is the gate's width half. Only compression to a cap is
+judgment. Gate:
 
 ```sh
 fail=0
 check() {
   n=$(/usr/bin/wc -l < "$1") || { echo "FAIL: cannot count $1"; exit 1; }
   [ "$n" -gt "$2" ] && { echo "OVER: $1 ($n > $2)"; fail=1; }
-  wide=$(LC_ALL=en_US.UTF-8 grep -nE '^.{101,}' "$1" | cut -c1-80)
-  [ -z "$wide" ] || { printf 'WIDE: %s\n%s\n' "$1" "$wide"; fail=1; }
 }
 check skills/peerreview/SKILL.md 1000
 check skills/peerreview-evolve/SKILL.md 150
 for f in skills/peerreview-approach-*/SKILL.md; do check "$f" 800; done
-for f in CONSTITUTION.md CLAUDE.md; do check "$f" 100000; done
+bash scripts/width.sh check || fail=1
 [ "$fail" -eq 0 ] && echo PASS || exit 1
 ```
 
