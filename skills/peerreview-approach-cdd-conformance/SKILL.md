@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-cdd-conformance
 description: "Peer-review lenses for CDD `{project}-conformance/` repos — golden file traceability, structural validation, seed coherence, suite invariants, mutation analysis, ACL completeness"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: CDD conformance repo
