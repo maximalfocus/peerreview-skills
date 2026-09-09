@@ -527,7 +527,7 @@ entire loop. The PEER never commits or pushes.
 product history. Unless the **Path-scoped git policy** or `--chat` applies, or
 durable intent names an OPEN PR whose head branch is already the review target,
 start the loop with `scripts/delivery-branch.sh start <repo> <slug>` and land it
-in Step 6 (standing user preference, asked on three consecutive runs 2026-08-18/19).
+as a PR in Step 6 (standing user preference, asked on three consecutive runs 2026-08-18/19).
 
 ## Step 4 — The convergence loop
 
@@ -907,10 +907,13 @@ Before the terminal report, always clean review-owned charter state with
 A pre-existing repo-root `PROBLEM.md` is not review-owned and is never removed.
 
 On convergence, land a branch-mode review with `scripts/delivery-branch.sh
-land <repo> <slug> <msgfile>` — one squashed commit on the delivery branch
-whose first non-blank line `land` preflights as the N-4 subject — then push
-that branch and create/push the anchor tag.
-The review branch is kept locally; its round commits remain the detailed record.
+land <repo> <slug> <msgfile>` — one squashed commit on delivery branch `evolve/<slug>`
+whose first non-blank line `land` preflights as the N-4 subject; `land` pushes that
+branch, opens (or reuses) its PR against the base branch (title = subject, body =
+message body), prints the PR URL, and never writes the base branch — then
+create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh <PR>`
+on the maintainer's explicit instruction merges it, never this run. The review
+branch is kept locally; its round commits remain the detailed record.
 
 Then **always commit and push the reviewed repo** — every run, on
 convergence *or* non-progress abort, without asking. Push the working
