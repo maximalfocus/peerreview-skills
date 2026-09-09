@@ -102,7 +102,7 @@ failure**). A same-HOST review is never a substitute.
    No/non-ancestor anchor, changed intent, or unbounded/cross-cutting impact selects **full**; otherwise select **incremental** anchor→HEAD + impact closure (consumers, contracts, tests, docs, migrations, generated artifacts).
    Incremental is never diff-only: run the full gate and escalate if impact cannot be bounded. Under `~/projects` (tags are forbidden git writes), always select full. In `--chat` mode, select full and skip checkpoint fetch because the wrapper has no remote or prior anchor.
 6. **Self-test the active charter's Verification gate before the loop:** from
-   repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^`.
+   repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^` — and "base" is the merge base (`git merge-base <base-branch> HEAD`, the three-dot range), never the base branch's tip: once the base has moved since branching, a two-dot diff shows landed work as if the PR reverted it (idd-skills PR #21 2026-09-09: a P1 "reverses the excluded fix" that was only the stale two-dot range).
 
 ### Chat-artifact delivery policy (`--chat`)
 
@@ -719,9 +719,13 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    Codex's round-1 fix aligned to the blog and the `= 0` form also removed a real
    `u32` underflow panic on two-bullets-one-enemy. Settle the value against the
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
-5. **Commit the round**: `peerreview: round <N> — <one-line summary>`
-   (co-authored: HOST reviewer + PEER co-editor — name the actual two models
-   and tools, e.g. Claude Code reviewer + Codex CLI co-editor, or reversed). If a round makes things
+5. **Commit the round**: `peerreview: round <N> — <one-line summary>`; but when the
+   reviewed repo declares a commit-subject convention (`CLAUDE.md`/`AGENTS.md` types,
+   commitlint) it binds every branch commit and the PEER's verdict reads them, so
+   compose in that convention keeping `round <N>` (`chore(peerreview): <summary> in
+   round N`); reword only unpushed commits, a pushed one is a residual (idd-skills
+   2026-09-09: an 87-char `peerreview:` subject cost a NOT CONVERGED round). Co-author
+   HOST reviewer + PEER co-editor, naming the actual two models and tools. If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
