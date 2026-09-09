@@ -69,9 +69,9 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
 - **Landed subject.** The squash-exception other families carry does not apply
   here: `scripts/delivery-branch.sh land` squashes **locally**
   (`git merge --squash` + `git commit -F <msgfile>`), so no provider derives a
-  subject from a PR title and N-4 holds with nothing to work around. The
-  msgfile's first non-blank line IS the landed subject (git's `whitespace`
-  cleanup drops leading blanks) — write it as
+  subject from a PR title at this local step. The later PR landing uses the
+  PR title plus ` (#PR)` as its subject. Set that title to the msgfile's first
+  non-blank line (git's `whitespace` cleanup drops leading blanks), written as
   `<type>(<scope>)?: <lowercase imperative>`, at most 72 characters, with the
   round-by-round evidence in the body. That commit lands in the **reviewed**
   repository, so the type must come from *that* repository's `Types:`
@@ -85,10 +85,10 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   by. `land` never writes the base branch: it pushes the squash on
   `evolve/<slug>` and opens the PR titled with that subject, and
   `~/personal/idd-skills/scripts/land-evolution.sh <PR>` squash-merges it as
-  `<title> (#PR)` on explicit instruction — so the landed subject is still the
-  msgfile's, and the PR title must stay that subject, not be re-prefixed.
-- **Private material.** This repository is private today; the rule is
-  prospective, because a leak recorded now survives into any later publication.
+  `<title> (#PR)` on explicit instruction — the authored subject comes from
+  the msgfile, and the PR title must stay that subject, not be re-prefixed.
+- **Private material.** This repository is public; a leak recorded now
+  is immediately exposed and survives in retained history.
   Never name the private companion product-contract repository (this project's
   `{project}-prd` sibling), one of its documents, or one of its sections in a
   branch, commit, issue, or PR — not even in order to say what must not be

@@ -16,6 +16,8 @@
 #   delivery-branch.sh land  <repo> <slug> <msgfile> -> squash onto evolve/<slug>, push, open the PR
 #
 # land preflights the message file's subject against N-4 before touching git.
+# The retained repository vocabulary can be broader than land-evolution.sh's
+# fixed types; that lander also requires an ASCII lowercase description start.
 #
 # Not applicable when: the repo is under ~/projects (Path-scoped git policy: no
 # git writes at all), in --chat mode (ephemeral wrapper, no delivery), or when
@@ -89,6 +91,8 @@ subject_preflight() {
   desc="${subject#*: }"
   case "$desc" in
     [[:upper:]]*) reject "the subject's description starts with a capital (N-4 wants lowercase): $subject" ;;
+    [a-z]*) ;;
+    *) reject "the subject's description must start with a lowercase letter (N-4, and what land-evolution.sh accepts): $subject" ;;
   esac
 
   type="${subject%%:*}"; type="${type%%(*}"
@@ -103,7 +107,7 @@ subject_preflight() {
 
 cmd="${1:?start|land}"; repo="${2:?repo}"; slug="${3:?slug}"
 # The delivery branch is the N-3 evolve/<slug> that land-evolution.sh accepts.
-printf '%s' "$slug" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*$' \
+[[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] \
   || { printf 'peerreview: slug must be lowercase kebab-case (N-3): %s\n' "$slug" >&2; exit 64; }
 cd "$repo"
 branch="peerreview/$slug"
@@ -123,27 +127,70 @@ case "$cmd" in
     subject_preflight "$msgfile"
     base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
     [ -z "$(git status --porcelain)" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
+    [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
+    # Resolve branch refs, never a same-named tag. An advanced/diverged base
+    # must be reviewed first: merging it here could introduce unreviewed changes.
+    base_oid="$(git rev-parse --verify "refs/heads/$base^{commit}")"
+    review_oid="$(git rev-parse --verify "refs/heads/$branch^{commit}")"
+    git merge-base --is-ancestor "$base_oid" "$review_oid" \
+      || { printf 'peerreview: base is not an ancestor of the reviewed head; review the updated base first.\n' >&2; exit 1; }
     # The base branch is never written: the squash lands on the delivery branch.
     # A re-run after a failed push or PR call reuses the delivery branch as long
-    # as it still holds exactly the reviewed tree.
-    if git rev-parse --verify --quiet "$delivery" >/dev/null; then
-      git diff --quiet "$delivery" "$branch" \
+    # as it is one commit on the base and holds exactly the reviewed tree.
+    delivery_oid=""
+    if git show-ref --verify --quiet "refs/heads/$delivery"; then
+      delivery_oid="$(git rev-parse "refs/heads/$delivery")"
+      git diff --quiet "$delivery_oid" "$review_oid" \
         || { printf 'peerreview: %s exists but differs from %s; delete or rename it and re-run.\n' "$delivery" "$branch" >&2; exit 1; }
-      git checkout -q "$delivery"
-    else
-      git checkout -q -b "$delivery" "$base"
-      git merge --squash "$branch" >/dev/null
-      git commit -q -F "$msgfile"
+      [ "$(git rev-list --parents -n 1 "$delivery_oid")" = "$delivery_oid $base_oid" ] \
+        || { printf 'peerreview: %s must be exactly one non-merge commit on the recorded base; preserve it and use a new slug.\n' "$delivery" >&2; exit 1; }
     fi
+    # Check origin before any local write. Unknown remote objects require an
+    # explicit fetch first; this refusal itself must not change local refs.
+    origin_url="$(git remote get-url --push origin)"
+    remote_status=0
+    remote_info="$(git ls-remote --exit-code --heads "$origin_url" "refs/heads/$delivery")" || remote_status=$?
+    case "$remote_status" in
+      0)
+        remote_oid="${remote_info%%[[:space:]]*}"
+        git cat-file -e "$remote_oid^{commit}" 2>/dev/null \
+          || { printf 'peerreview: origin/%s is not available locally; fetch that branch, then re-run.\n' "$delivery" >&2; exit 1; }
+        git diff --quiet "$remote_oid" "$review_oid" \
+          || { printf 'peerreview: origin/%s exists but differs from the reviewed tree; preserve it and use a new slug.\n' "$delivery" >&2; exit 1; }
+        [ "$(git rev-list --parents -n 1 "$remote_oid")" = "$remote_oid $base_oid" ] \
+          || { printf 'peerreview: origin/%s is not one commit on the recorded base.\n' "$delivery" >&2; exit 1; }
+        [ -z "$delivery_oid" ] || [ "$delivery_oid" = "$remote_oid" ] \
+          || { printf 'peerreview: local and origin delivery commits differ; preserve both and use a new slug.\n' >&2; exit 1; }
+        delivery_oid="$remote_oid" ;;
+      2) ;; # no remote branch
+      *) printf 'peerreview: cannot inspect origin/%s; nothing changed.\n' "$delivery" >&2; exit 1 ;;
+    esac
+    if git show-ref --verify --quiet "refs/heads/$delivery"; then
+      git checkout -q "$delivery"
+    elif [ -n "$delivery_oid" ]; then
+      git checkout -q -b "$delivery" "$delivery_oid"
+    else
+      git checkout -q -b "$delivery" "$base_oid"
+      git merge --squash "$review_oid" >/dev/null
+      git commit -q -F "$msgfile" || {
+        printf 'peerreview: commit failed on %s; staged review changes are retained. Complete the commit with the message file, then re-run land.\n' "$delivery" >&2; exit 1; }
+    fi
+    # Commit hooks may stage formatting changes or leave edits behind. Do not
+    # publish anything except the reviewed tree, even after a successful commit.
+    git diff --quiet HEAD "$review_oid" && [ -z "$(git status --porcelain)" ] \
+      || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
     printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"
-    git push -q -u origin "$delivery"
-    pr_url="$(gh pr list --head "$delivery" --state open --json url --jq '.[0].url // empty')"
+    git push -q -u origin "refs/heads/$delivery:refs/heads/$delivery"
+    # Pin provider operations to the repository we pushed, even in a fork
+    # checkout where gh's default repository may be the upstream.
+    body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
+    body_of "$msgfile" > "$body"
+    subject="$(subject_of "$msgfile")"
+    pr_url="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository --jq '[.[] | select(.isCrossRepository == false)][0].url // empty')"
     if [ -n "$pr_url" ]; then
       printf 'peerreview: reusing the open pull request for %s\n' "$delivery"
     else
-      body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
-      body_of "$msgfile" > "$body"
-      pr_url="$(gh pr create --base "$base" --head "$delivery" --title "$(subject_of "$msgfile")" --body-file "$body")"
+      pr_url="$(gh pr create --repo "$origin_url" --base "$base" --head "$delivery" --title "$subject" --body-file "$body")"
     fi
     printf 'peerreview: pull request %s\n' "$pr_url"
     printf 'peerreview: checkout left on %s; review branch retained locally with its round commits.\n' "$delivery"

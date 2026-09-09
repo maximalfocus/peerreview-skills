@@ -28,6 +28,7 @@ cat > "$tmp/bin/gh" <<'FAKE_GH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "${GH_FAKE_LOG:?}"
+[ "${GH_FAKE_FAIL:-}" != "$1 $2" ] || exit 42
 case "$1 $2" in
   "pr list") printf '%s\n' "${GH_FAKE_EXISTING:-}" ;;
   "pr create")
@@ -40,7 +41,7 @@ chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 export GH_FAKE_LOG="$tmp/gh.log" GH_FAKE_BODY="$tmp/gh.body"
 
-fresh() { # a reviewed repo mid-review: one round commit on peerreview/<slug>, main pushed to a bare origin
+fresh() { # two review rounds: copying the review head must not pass the squash assertion
   rm -rf "$repo" "$origin" "$GH_FAKE_LOG" "$GH_FAKE_BODY"; mkdir -p "$repo"
   git init -q --bare "$origin"
   git -C "$repo" init -q -b main
@@ -54,21 +55,29 @@ fresh() { # a reviewed repo mid-review: one round commit on peerreview/<slug>, m
   bash "$script" start "$repo" slug >/dev/null
   printf 'round\n' >> "$repo/file.txt"
   git -C "$repo" commit -qam 'peerreview: round 1'
+  printf 'round 2\n' >> "$repo/file.txt"
+  git -C "$repo" commit -qam 'peerreview: round 2'
 }
 
 head_before() { git -C "$repo" rev-parse HEAD; }
 origin_main() { git -C "$origin" rev-parse main; }
+base_unchanged() {
+  [ "$(git -C "$repo" rev-parse main)" = "$base_before" ] || fail "$1: local main moved"
+  [ "$(origin_main)" = "$base_before" ] || fail "$1: origin main moved"
+}
 
 refuses() { # refuses DESC FRAGMENT
-  local desc="$1" frag="$2" before err branch_before
+  local desc="$1" frag="$2" before err branch_before slug="${3:-slug}" refs_before tree_before
   before="$(head_before)"; branch_before="$(git -C "$repo" rev-parse --abbrev-ref HEAD)"
-  err="$(bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" && fail "accepted $desc"
+  refs_before="$(git -C "$repo" show-ref)"; tree_before="$(git -C "$repo" status --porcelain)"
+  err="$(bash "$script" land "$repo" "$slug" "$msg" 2>&1 >/dev/null)" && fail "accepted $desc"
   case "$err" in *"$frag"*) ;; *) fail "rejected $desc for the wrong reason: $err" ;; esac
   # The preflight's justification: a rejection mutates nothing.
   [ "$(head_before)" = "$before" ] || fail "$desc: HEAD moved during a refusal"
   [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" = "$branch_before" ] \
     || fail "$desc: branch changed during a refusal"
-  [ -z "$(git -C "$repo" status --porcelain)" ] || fail "$desc: working tree dirtied during a refusal"
+  [ "$(git -C "$repo" status --porcelain)" = "$tree_before" ] || fail "$desc: working tree changed during a refusal"
+  [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "$desc: refs changed during a refusal"
   [ ! -e "$GH_FAKE_LOG" ] || fail "$desc: gh was called during a refusal"
 }
 
@@ -88,7 +97,7 @@ accepts() { # accepts DESC EXPECTED_SUBJECT
   [ "$(git -C "$origin" rev-parse evolve/slug)" = "$(git -C "$repo" rev-parse evolve/slug)" ] || fail "$desc: evolve/slug not pushed"
   git -C "$repo" rev-parse --verify --quiet peerreview/slug >/dev/null || fail "$desc: review branch was not retained"
   # The PR is opened against the base branch with the subject as title.
-  grep -qx "pr create --base main --head evolve/slug --title $want --body-file .*" "$GH_FAKE_LOG" \
+  grep -qx "pr create --repo $origin --base main --head evolve/slug --title $want --body-file .*" "$GH_FAKE_LOG" \
     || fail "$desc: no matching pr create in $(cat "$GH_FAKE_LOG")"
   case "$out" in *"https://example.invalid/pr/1"*) ;; *) fail "$desc: PR URL not printed: $out" ;; esac
 }
@@ -115,6 +124,9 @@ refuses "a non-kebab scope" "not '<type>(<scope>)?: <description>'"
 printf 'feat: Land the review\n' > "$msg"
 refuses "a capitalised description" "starts with a capital"
 
+printf 'feat: 123 examples\n' > "$msg"
+refuses "a description that does not start with a letter" "start with a lowercase letter"
+
 printf 'chore: land the review\n' > "$msg"
 refuses "a type outside the reviewed repo's vocabulary" "is not one the reviewed repository allows"
 
@@ -130,7 +142,9 @@ fresh '# conventions
 Types: see the contributing guide for the list.
 '
 printf 'chore: land the review\n' > "$msg"
+base_before="$(origin_main)"
 out="$(bash "$script" land "$repo" slug "$msg" 2>&1)" || fail "blocked on an unparseable vocabulary"
+base_unchanged 'unparseable vocabulary'
 case "$out" in *"could not read it"*) ;; *) fail "no warning for an unparseable vocabulary" ;; esac
 [ "$(git -C "$repo" log -1 --format=%s)" = "chore: land the review" ] || fail "unparseable-vocabulary land wrote the wrong subject"
 
@@ -174,11 +188,101 @@ GH_FAKE_EXISTING=https://example.invalid/pr/1 accepts "a re-run after the PR exi
 fresh "$vocab"
 git -C "$repo" branch evolve/slug main
 printf 'feat: land the review\n' > "$msg"
-err="$(bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" && fail "landed onto a stale evolve/slug"
-case "$err" in *"exists but differs"*) ;; *) fail "stale evolve/slug refused for the wrong reason: $err" ;; esac
+refuses "a stale evolve/slug" "exists but differs"
 
 # The delivery branch must be one land-evolution.sh accepts (N-3 kebab slug).
-err="$(bash "$script" land "$repo" Bad_Slug "$msg" 2>&1 >/dev/null)" && fail "accepted a non-kebab slug"
-case "$err" in *"lowercase kebab-case"*) ;; *) fail "bad slug refused for the wrong reason: $err" ;; esac
+refuses "a non-kebab slug" "lowercase kebab-case" Bad_Slug
+refuses "a multiline slug" "lowercase kebab-case" $'slug\nBAD'
+
+# A same-tree branch with round history is not a valid prior delivery.
+fresh "$vocab"
+git -C "$repo" branch evolve/slug peerreview/slug
+refuses "an unsquashed same-tree branch" "exactly one non-merge commit"
+
+# Advancing the base with an unrelated file would otherwise silently merge an
+# unreviewed change into the delivery tree.
+fresh "$vocab"
+git -C "$repo" checkout -q main
+printf 'unreviewed\n' > "$repo/unreviewed.txt"
+git -C "$repo" add unreviewed.txt
+git -C "$repo" commit -qm 'fix: advance the base'
+git -C "$repo" checkout -q peerreview/slug
+refuses "an advanced base" "base is not an ancestor"
+
+fresh "$vocab"
+git -C "$repo" branch evolve/slug peerreview/slug
+printf 'evolve/slug\n' > "$repo/.git/peerreview-base"
+refuses "a base/delivery collision" "base and delivery branch must differ"
+
+# A different-tree remote branch must not be overwritten even when the push
+# would be a fast-forward. A valid remote-only squash is reused verbatim.
+fresh "$vocab"
+git -C "$repo" push -q origin main:refs/heads/evolve/slug
+refuses "a stale remote delivery" "exists but differs from the reviewed tree"
+[ "$(git -C "$origin" rev-parse evolve/slug)" = "$(origin_main)" ] || fail "stale remote delivery moved"
+
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+accepts "initial delivery before remote-only retry" "feat: land the review"
+landed="$(git -C "$repo" rev-parse evolve/slug)"
+git -C "$repo" checkout -q peerreview/slug
+git -C "$repo" branch -D evolve/slug >/dev/null
+GH_FAKE_EXISTING=https://example.invalid/pr/1 accepts "reuse of remote-only delivery" "feat: land the review"
+[ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "remote delivery re-squashed"
+
+# Operational failures retain a recoverable delivery and never move either
+# base. These are distinct from local preflight refusals (which call no gh).
+for operation in 'pr list' 'pr create'; do
+  fresh "$vocab"
+  printf 'feat: land the review\n\nBody.\n' > "$msg"
+  base_before="$(origin_main)"
+  rc=0
+  GH_FAKE_FAIL="$operation" bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
+  [ "$rc" = 42 ] || fail "$operation: failure was not propagated"
+  base_unchanged "$operation failure"
+  [ -z "$(git -C "$repo" status --porcelain)" ] || fail "$operation: dirty failure state"
+  landed="$(git -C "$repo" rev-parse evolve/slug)"
+  accepts "retry after $operation failure" "feat: land the review"
+  [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "$operation: retry re-squashed"
+done
+
+fresh "$vocab"
+base_before="$(origin_main)"
+printf '#!/bin/sh\nexit 1\n' > "$origin/hooks/pre-receive"
+chmod +x "$origin/hooks/pre-receive"
+if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "push rejection ignored"; fi
+base_unchanged 'push rejection'
+[ ! -e "$GH_FAKE_LOG" ] || fail "gh called after a rejected push"
+[ -z "$(git -C "$repo" status --porcelain)" ] || fail "push rejection dirtied tree"
+landed="$(git -C "$repo" rev-parse evolve/slug)"
+rm "$origin/hooks/pre-receive"
+accepts "retry after push rejection" "feat: land the review"
+[ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "push retry re-squashed"
+
+fresh "$vocab"
+base_before="$(origin_main)"
+printf '#!/bin/sh\nexit 1\n' > "$repo/.git/hooks/pre-commit"
+chmod +x "$repo/.git/hooks/pre-commit"
+if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "commit failure ignored"; fi
+base_unchanged 'commit failure'
+[ ! -e "$GH_FAKE_LOG" ] || fail "gh called after commit failure"
+[ "$(git -C "$repo" branch --show-current)" = evolve/slug ] || fail "commit failure on wrong branch"
+git -C "$repo" diff --cached --quiet && fail "commit failure lost staged review"
+rm "$repo/.git/hooks/pre-commit"
+git -C "$repo" commit -q -F "$msg"
+accepts "resume after completing the failed commit" "feat: land the review"
+
+fresh "$vocab"
+base_before="$(origin_main)"
+cat > "$repo/.git/hooks/pre-commit" <<'HOOK'
+#!/bin/sh
+printf 'hook formatting\n' >> file.txt
+git add file.txt
+HOOK
+chmod +x "$repo/.git/hooks/pre-commit"
+if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "published a hook-altered tree"; fi
+base_unchanged 'hook-altered tree'
+[ ! -e "$GH_FAKE_LOG" ] || fail "gh called for hook-altered tree"
+if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-altered tree pushed"; fi
 
 echo "delivery-branch.sh land preflight and PR delivery valid"
