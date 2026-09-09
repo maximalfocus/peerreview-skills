@@ -133,10 +133,11 @@ review state, never a duplicate contract added to the reviewed repo; a pre-exist
 
 ## Article 8 — Trust boundaries
 
-- **Methodology evolution (`/peerreview-evolve`) — auto-apply + auto-publish allowed.** Skill-file
-  changes are auto-applied and pushed after passing this constitution + the size gate +
-  reference-integrity. The bar, the gate, and git revertibility are the safety net; no separate
-  human approval (standing authorization — see Article 9 and `CLAUDE.md`).
+- **Methodology evolution (`/peerreview-evolve`) — auto-apply + auto-propose allowed.** Skill-file
+  changes are auto-applied and opened as a pull request after passing this constitution + the size
+  gate + reference-integrity. The bar, the gate, the maintainer's review, and git revertibility are
+  the safety net; no separate human approval to propose (standing authorization — see Article 9 and
+  `CLAUDE.md`), but only the maintainer's explicit instruction lands the PR.
 - **The repo under review — governed by peerreview's own convergence gate, never by trust.** Every
   run derives a fresh active charter from the current instruction and durable project sources, every
   round re-reviews the real diff and re-runs the verification gate, and a dismissed PEER finding is
@@ -159,19 +160,30 @@ review state, never a duplicate contract added to the reviewed repo; a pre-exist
 
 ## Article 9 — Commit and publish
 
-Every evolve change must reach `maximalfocus/peerreview-skills` on `main` — local-only commits are
-worthless. Standing user authorization (2026-06-13, recorded in `CLAUDE.md`) covers routine
-skill/evolution edits + their push; still confirm for destructive git ops. Concurrency
-(siblings/environments move `main` under you, working copy is shared):
+Every evolve change must reach `maximalfocus/peerreview-skills` on `main` through a reviewed pull
+request — local-only commits are worthless, and since 2026-09-09 GitHub refuses a direct push to
+`main` (ruleset `require-pull-request`: PR required, squash only, linear history, no force-push, no
+deletion, no bypass). Standing user authorization (2026-06-13, recorded in `CLAUDE.md`) covers
+routine skill/evolution edits + proposing their PR; landing waits for the maintainer's explicit
+instruction, and still confirm for destructive git ops. Concurrency (siblings/environments move
+`main` under you, working copy is shared):
 
-1. **Stage only the paths this session changed** — explicit `git add <paths>`, never `-A`/`-u`/`.`.
-   Leave files you didn't touch.
-2. **Edit only task-coupled methodology sources/support** — `CONSTITUTION.md`, `skills/`, and
+1. **Verify the protection before editing** — `bash ~/personal/idd-skills/scripts/protect-main.sh
+   verify`; if it fails, stop and report it rather than editing.
+2. **Stage only the paths this session changed** — `propose.sh` commits exactly the paths you name;
+   never `-A`/`-u`/`.`. Leave files you didn't touch.
+3. **Edit only task-coupled methodology sources/support** — `CONSTITUTION.md`, `skills/`, and
    directly invoked `scripts/`/`templates/` or their README documentation. There is no `commands/`
    mirror to regenerate (unlike cdd-skills).
-3. **Commit on `evolve/<slug>`, push it, open the pull request titled with the N-4 subject,
-   squash-merge it with that subject passed explicitly.** `main` is protected — pull request
-   required, squash only — and refuses a direct push (rejected 2026-09-09 with GH013 after the text
-   here still said to push `main`); retry the branch push on rejection (≤3). Never force-push.
-4. Verify the size gate; report the commit SHA. Scope of auto-publish: **this repo only** — repos
-   under review follow the Path-scoped policy above.
+4. **Propose, never write `main`** — `main` is protected (pull request required, squash only) and
+   refuses a direct push. From `main` equal to `origin/main` (`git pull --ff-only` when behind) with
+   an empty index, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>`
+   commits those paths on `evolve/<slug>` (N-3), pushes it, opens the PR with the N-4 subject
+   (`<type>(<scope>)?: <lowercase imperative>`, ≤72 chars) as title and the evidence body as
+   description, and returns the checkout to `main`. Never force-push; if it refuses, fix the
+   precondition it names and rerun — never work around it with raw pushes.
+5. Verify the size gate; stop and report the PR URL. Landing happens only through `bash
+   ~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the maintainer's explicit instruction
+   after review (by hand or `/peerreview`): squash merge as `<title> (#PR)`, `main` fast-forwarded,
+   branch deleted locally and on origin. Scope of auto-propose: **this repo only** — repos under
+   review follow the Path-scoped policy above.

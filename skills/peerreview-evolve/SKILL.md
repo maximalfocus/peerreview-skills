@@ -82,8 +82,8 @@ For each candidate change, in priority order:
 4. **Keep or discard:** kept = it simplifies or adds review capability peerreview genuinely lacked
    and passes validation; discard (revert to the pre-change git state) = validation failed or it
    adds complexity without clear value. A discard leaves no trace.
-5. **Commit** each kept change (Article 9). The commit message is the only record of what and why —
-   make it real.
+5. **Commit and propose** each kept change (Article 9). The commit message is the only record of
+   what and why — make it real; it becomes the PR title and body.
 
 If a candidate crashes mid-apply, revert it and continue to the next; never abort the whole pass for
 one failed experiment.
@@ -98,12 +98,17 @@ module on the 2nd repo that matches it.
 
 ### GATE: Commit and publish (before skill exit)
 
-Every kept change must reach `maximalfocus/peerreview-skills` on `main` — follow **Article 9** of
-the constitution: stage only this session's explicit paths (never `git add -A`), edit
-`CONSTITUTION.md` and `skills/` only (there is no `commands/` mirror), commit first, then `git pull
---rebase origin main`, then push, retrying on non-fast-forward rejection (≤3), never force-push or
-branch. Verify the size gate and report the commit SHA(s). Scope: this repo only — repos under
-review follow the Path-scoped git policy.
+Every kept change must reach `maximalfocus/peerreview-skills` on `main` through a reviewed pull
+request — follow **Article 9** of the constitution: run `bash
+~/personal/idd-skills/scripts/protect-main.sh verify` before editing; edit `CONSTITUTION.md` and
+`skills/` only (there is no `commands/` mirror); from `main` equal to `origin/main` with nothing
+staged, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>` commits
+exactly those paths (never `git add -A`) on `evolve/<slug>` with an N-4 subject and the evidence in
+the body, pushes, and opens the PR. Never write `main` directly, never force-push. Verify the size
+gate and stop, reporting the PR URL — landing is `bash
+~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the maintainer's explicit instruction after
+review, never part of this pass. Scope: this repo only — repos under review follow the Path-scoped
+git policy.
 
 ## After completion: evolve this skill
 

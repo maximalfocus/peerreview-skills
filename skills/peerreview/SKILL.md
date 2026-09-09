@@ -163,8 +163,9 @@ in this mode:
   names the branch, and confirms nothing was committed or pushed. This is the *expected* terminal
   state here — not a failure, so do not "fail loud" about the absent push.
 
-This exception governs only the **repo under review**. Self-evolving and pushing `peerreview-skills`
-(in `~/personal`, outside `~/projects`) is unaffected and still unconditional.
+This exception governs only the **repo under review**. Self-evolving `peerreview-skills` (in
+`~/personal`, outside `~/projects`) is unaffected: a kept change is still proposed unconditionally,
+as a PR (`CONSTITUTION.md` Article 9).
 
 ## Step 1 — Read the charter adversarially
 
@@ -591,26 +592,26 @@ must have run and been independently re-verified):
   after. Continue until the PEER says CONVERGED on the committed state. This codifies the
   "second-model agreement" the mandatory PEER round was supposed to provide but did not — running
   one edit-round once and not asking for an explicit verdict is the failure mode this rule corrects.
-  - **The verdict prompt MUST be neutral — no anchoring (user directive, 2026-05-23).** Present only
-  raw, neutral facts (the gate's actual command output) and explicitly invite the PEER to find more;
-  do NOT pre-load your own conclusions ("all green, lenses swept clean, README honest, no
-  findings"). A leading verdict biases the PEER toward agreement and manufactures false-fast
-  convergence (orderflow-go, in full under "Keep the PEER review independent"; the neutral re-review
-  also refuted 1 PEER-proposed regression). One round on a self-serving repo is a yellow flag —
-  re-prove neutrally, do not rubber-stamp.
+- **The verdict prompt MUST be neutral — no anchoring (user directive, 2026-05-23).** Present only
+    raw, neutral facts (the gate's actual command output) and explicitly invite the PEER to find
+    more; do NOT pre-load your own conclusions ("all green, lenses swept clean, README honest, no
+    findings"). A leading verdict biases the PEER toward agreement and manufactures false-fast
+    convergence (orderflow-go, in full under "Keep the PEER review independent"; the neutral
+    re-review also refuted 1 PEER-proposed regression). One round on a self-serving repo is a yellow
+    flag — re-prove neutrally, do not rubber-stamp.
 - **A peer usage-limit error during the verdict prompt is a "verdict-pending" residual, not a silent
-    CONVERGED** (student-mgmt-conformance 2026-05-29): a transient external failure, not a
-    NOT-CONVERGED outcome. Do not fabricate a verdict, treat reviewer-side green as one, or loop
-    while waiting (hours, or weeks on a monthly cap). Commit reviewer-applied edits, push per Step
-    6, record verdict-pending with the reset time the CLI returned, and tell the user to re-run
-    `/peerreview` after it; never re-ladder to another peer while the resolved side is blocked.
+  CONVERGED** (student-mgmt-conformance 2026-05-29): a transient external failure, not a
+  NOT-CONVERGED outcome. Do not fabricate a verdict, treat reviewer-side green as one, or loop while
+  waiting (hours, or weeks on a monthly cap). Commit reviewer-applied edits, push per Step 6, record
+  verdict-pending with the reset time the CLI returned, and tell the user to re-run `/peerreview`
+  after it; never re-ladder to another peer while the resolved side is blocked.
 - **The verdict prompt must make READING explicit, in its first paragraph, every time** — a
-    read-only sandbox still permits reading every file and running read-only commands; "do not run
-    commands" means no mutating commands, not "cannot read". A NOT CONVERGED premised on "review is
-    impossible because I may not run commands" is a wrong-premise verdict (same class as the
-    gate-count miscount above): re-dispatch once with the permission restated, never treat it as a
-    residual, never edit the artifact to satisfy it. It recurs when the line is shortened
-    (CC-Sandbox 2026-08-09; vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
+  read-only sandbox still permits reading every file and running read-only commands; "do not run
+  commands" means no mutating commands, not "cannot read". A NOT CONVERGED premised on "review is
+  impossible because I may not run commands" is a wrong-premise verdict (same class as the
+  gate-count miscount above): re-dispatch once with the permission restated, never treat it as a
+  residual, never edit the artifact to satisfy it. It recurs when the line is shortened (CC-Sandbox
+  2026-08-09; vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
 
 Anything not fixable without changing host state / running real infrastructure / external review is
 **not** a blocker — it is recorded as a residual, not papered over.
@@ -711,7 +712,7 @@ If this run surfaced a **durable, generalizable** lesson — a review lens that 
 defect class the gate structurally missed, a skill bug or stale path — invoke
 **`/peerreview-evolve`** (post-review mode). It filters the candidate through `CONSTITUTION.md`
 (proof matched to the claim's scope), edits the matching `peerreview-approach-*` lens or main Step,
-validates the size gate, and commits. A one-off `CONVERGED, no durable lesson` run evolves
+validates the size gate, and proposes a PR. A one-off `CONVERGED, no durable lesson` run evolves
 **nothing** — the trigger is pull-based, so a non-actionable run simply leaves no trace. The git
 history of the skills is the record; never re-create a patterns/index log.
 
@@ -744,7 +745,7 @@ history of the skills is the record; never re-create a patterns/index log.
 - "Ready" = charter satisfied + gates green + no substantive findings. Not "perfect".
 - **Methodology evolution is a filter, not a log** (`CONSTITUTION.md` Article 1): no `evolution/`
   log, no every-run self-evolve+push. A durable lesson is routed through `/peerreview-evolve`, which
-  gates it against the constitution and commits; a non-actionable run leaves no trace.
+  gates it against the constitution and proposes a PR; a non-actionable run leaves no trace.
 - Every repository run ends by pushing the reviewed repo (fail loud if a push cannot complete).
   **Exceptions:** under the **Path-scoped git policy** the *reviewed repo* is never committed or
   pushed (left for manual Windows-side commit). **Chat-artifact mode is also non-publishing by
