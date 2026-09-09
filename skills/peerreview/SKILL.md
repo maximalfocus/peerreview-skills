@@ -593,25 +593,25 @@ must have run and been independently re-verified):
   "second-model agreement" the mandatory PEER round was supposed to provide but did not — running
   one edit-round once and not asking for an explicit verdict is the failure mode this rule corrects.
 - **The verdict prompt MUST be neutral — no anchoring (user directive, 2026-05-23).** Present only
-    raw, neutral facts (the gate's actual command output) and explicitly invite the PEER to find
-    more; do NOT pre-load your own conclusions ("all green, lenses swept clean, README honest, no
-    findings"). A leading verdict biases the PEER toward agreement and manufactures false-fast
-    convergence (orderflow-go, in full under "Keep the PEER review independent"; the neutral
-    re-review also refuted 1 PEER-proposed regression). One round on a self-serving repo is a yellow
-    flag — re-prove neutrally, do not rubber-stamp.
-  - **A peer usage-limit error during the verdict prompt is a "verdict-pending" residual, not a silent
-    CONVERGED** (student-mgmt-conformance 2026-05-29): a transient external failure, not a
-    NOT-CONVERGED outcome. Do not fabricate a verdict, treat reviewer-side green as one, or loop while
-    waiting (hours, or weeks on a monthly cap). Commit reviewer-applied edits, push per Step 6, record
-    verdict-pending with the reset time the CLI returned, and tell the user to re-run `/peerreview`
-    after it; never re-ladder to another peer while the resolved side is blocked.
+  raw, neutral facts (the gate's actual command output) and explicitly invite the PEER to find more;
+  do NOT pre-load your own conclusions ("all green, lenses swept clean, README honest, no
+  findings"). A leading verdict biases the PEER toward agreement and manufactures false-fast
+  convergence (orderflow-go, in full under "Keep the PEER review independent"; the neutral re-review
+  also refuted 1 PEER-proposed regression). One round on a self-serving repo is a yellow flag —
+  re-prove neutrally, do not rubber-stamp.
+  - **A peer usage-limit error during the verdict prompt is a "verdict-pending" residual, not a
+    silent CONVERGED** (student-mgmt-conformance 2026-05-29): a transient external failure, not a
+    NOT-CONVERGED outcome. Do not fabricate a verdict, treat reviewer-side green as one, or loop
+    while waiting (hours, or weeks on a monthly cap). Commit reviewer-applied edits, push per Step
+    6, record verdict-pending with the reset time the CLI returned, and tell the user to re-run
+    `/peerreview` after it; never re-ladder to another peer while the resolved side is blocked.
   - **The verdict prompt must make READING explicit, in its first paragraph, every time** — a
     read-only sandbox still permits reading every file and running read-only commands; "do not run
     commands" means no mutating commands, not "cannot read". A NOT CONVERGED premised on "review is
     impossible because I may not run commands" is a wrong-premise verdict (same class as the
     gate-count miscount above): re-dispatch once with the permission restated, never treat it as a
-    residual, never edit the artifact to satisfy it. It recurs when the line is shortened (CC-Sandbox
-    2026-08-09; vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
+    residual, never edit the artifact to satisfy it. It recurs when the line is shortened
+    (CC-Sandbox 2026-08-09; vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
 
 Anything not fixable without changing host state / running real infrastructure / external review is
 **not** a blocker — it is recorded as a residual, not papered over.
