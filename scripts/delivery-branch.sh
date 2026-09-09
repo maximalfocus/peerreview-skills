@@ -147,9 +147,12 @@ case "$cmd" in
     # Ignored files are invisible to status, yet a checkout or squash silently
     # overwrites one whose path the base or reviewed tree tracks and HEAD does
     # not. Refuse that before any write or gh call, and keep the file.
-    clobber="$({ git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$base"
-                 git -c core.quotePath=false diff --name-only --diff-filter=A HEAD "refs/heads/$branch"; } | sort -u \
-               | while IFS= read -r f; do [ -e "$f" ] && printf '%s\n' "$f"; done; true)"
+    clobber="$({ git -c core.quotePath=false diff --name-only --diff-filter=AT HEAD "refs/heads/$base"
+                 git -c core.quotePath=false diff --name-only --diff-filter=AT HEAD "refs/heads/$branch"; } | sort -u \
+               | while IFS= read -r f; do
+                   if [ -e "$f" ]; then printf '%s\n' "$f"; continue; fi
+                   p="$f"; while [ "${p%/*}" != "$p" ]; do p="${p%/*}"; [ -e "$p" ] && [ ! -d "$p" ] && { printf '%s\n' "$f"; break; }; done
+                 done; true)"
     [ -z "$clobber" ] || { printf 'peerreview: these paths exist locally but are tracked by the base or reviewed tree and not by HEAD, so landing would overwrite them; move them aside and re-run:\n%s\n' "$clobber" >&2; exit 1; }
     # Resolve branch refs, never a same-named tag. An advanced/diverged base
     # must be reviewed first: merging it here could introduce unreviewed changes.
@@ -217,23 +220,27 @@ case "$cmd" in
         || { printf 'peerreview: the open pull request for %s (%s) is not what the message file describes: base %s (want %s), title "%s" (want "%s"), draft %s (want false), body %s. Fix the PR or the message file, then re-run; nothing was changed.\n' \
                "$delivery" "$pr_url" "$pr_base" "$base" "$pr_title" "$subject" "$pr_draft" "$body_state" >&2; exit 1; }
     fi
-    if git show-ref --verify --quiet "refs/heads/$delivery"; then
-      git checkout -q --no-overwrite-ignore "$delivery"
-    elif [ -n "$delivery_oid" ]; then
-      git checkout -q --no-overwrite-ignore -b "$delivery" "$delivery_oid"
-    else
-      git checkout -q --no-overwrite-ignore -b "$delivery" "$base_oid"
-      git merge --squash --no-overwrite-ignore "$review_oid" >/dev/null
-      git commit -q -F "$msgfile" || {
-        printf 'peerreview: commit failed on %s; staged review changes are retained. Complete the commit with the message file, then re-run land.\n' "$delivery" >&2; exit 1; }
+    # The squash is built from objects, never from the checkout — the reviewed
+    # tree on the recorded base, ref created atomically (must not exist) — so
+    # another session switching this shared checkout mid-run cannot make the
+    # commit land on the base. No hook runs here: every round commit already ran
+    # them, and the provider re-creates the commit at landing anyway.
+    if [ -z "$delivery_oid" ]; then
+      delivery_oid="$(git stripspace < "$msgfile" | git commit-tree "$(tree_of "$review_oid")" -p "$base_oid")"
+      git update-ref "refs/heads/$delivery" "$delivery_oid" "" \
+        || { printf 'peerreview: %s appeared while landing; nothing pushed, re-run.\n' "$delivery" >&2; exit 1; }
+    elif ! git show-ref --verify --quiet "refs/heads/$delivery"; then
+      git update-ref "refs/heads/$delivery" "$delivery_oid" "" \
+        || { printf 'peerreview: %s appeared while landing; nothing pushed, re-run.\n' "$delivery" >&2; exit 1; }
     fi
-    # Commit hooks may stage formatting changes or leave edits behind. Do not
-    # publish anything except the reviewed tree, even after a successful commit.
-    tree="$(git status --porcelain --untracked-files=all --ignore-submodules=none)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
-    [ "$(tree_of HEAD)" = "$(tree_of "$review_oid")" ] && [ -z "$tree" ] \
-      || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
-    printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"
-    git push -q -u origin "refs/heads/$delivery:refs/heads/$delivery"
+    printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short "$delivery_oid")" "$base"
+    # Push the validated commit by id: a branch moved since cannot be published.
+    git push -q origin "$delivery_oid:refs/heads/$delivery"
+    git branch -q --set-upstream-to="origin/$delivery" "$delivery" 2>/dev/null || true
+    git checkout -q --no-overwrite-ignore "$delivery"
+    [ "$(git rev-parse HEAD)" = "$delivery_oid" ] \
+      || { printf 'peerreview: %s moved while landing (now %s); origin holds the reviewed %s. Delete or rename the local branch and re-run.\n' \
+             "$delivery" "$(git rev-parse --short HEAD)" "$(git rev-parse --short "$delivery_oid")" >&2; exit 1; }
     if [ -n "$pr_url" ]; then
       printf 'peerreview: reusing the open pull request for %s\n' "$delivery"
     else

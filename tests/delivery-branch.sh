@@ -328,16 +328,6 @@ printf 'pending\n' > "$repo/pending.txt"
 refuses "an untracked file hidden by status.showUntrackedFiles=no" "working tree not clean"
 rm "$repo/pending.txt"
 
-fresh "$vocab"
-base_before="$(origin_main)"
-git -C "$repo" config status.showUntrackedFiles no
-printf '#!/bin/sh\nprintf leftover > leftover.txt\n' > "$repo/.git/hooks/pre-commit"
-chmod +x "$repo/.git/hooks/pre-commit"
-if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "published with a hook-created untracked file"; fi
-base_unchanged 'hook-created untracked file'
-if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened with a hook-created untracked file"; fi
-if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-created untracked file was pushed past"; fi
-
 # An ignored local file whose path the base tracks (and the review removed)
 # would be silently overwritten by the delivery checkout: refused before any
 # write or gh call, with the file intact.
@@ -359,6 +349,52 @@ case "$err" in *"exist locally"*) ;; *) fail "ignored-file collision refused for
 [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "ignored-file refusal wrote refs"
 [ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "ignored-file refusal moved the checkout"
 [ ! -e "$GH_FAKE_LOG" ] || fail "gh was called before the ignored-file refusal"
+
+# Another session may use this shared checkout mid-run. A reference-transaction
+# hook plays that session: switching HEAD to the base the moment evolve/slug is
+# created must not put the squash on the base; advancing evolve/slug after it
+# is validated must not publish the advance — the reviewed commit is pushed by
+# id and the moved branch is reported.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+cat > "$repo/.git/hooks/reference-transaction" <<'HOOK'
+#!/bin/sh
+[ "$1" = committed ] || exit 0
+d=$(git rev-parse --git-dir); [ -e "$d/played" ] && exit 0
+if grep -q ' refs/heads/evolve/slug$'; then : > "$d/played"; git symbolic-ref HEAD refs/heads/main; fi
+exit 0
+HOOK
+chmod +x "$repo/.git/hooks/reference-transaction"
+accepts "a landing whose checkout another session switches to the base mid-run" "feat: land the review"
+rm "$repo/.git/hooks/reference-transaction"
+
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+cat > "$repo/.git/hooks/reference-transaction" <<'HOOK'
+#!/bin/sh
+[ "$1" = committed ] || exit 0
+d=$(git rev-parse --git-dir); [ -e "$d/played" ] && exit 0
+if grep -q ' refs/heads/evolve/slug$'; then
+  : > "$d/played"
+  tip=$(git rev-parse refs/heads/evolve/slug)
+  blob=$(printf 'unreviewed\n' | git hash-object -w --stdin)
+  tree=$({ git ls-tree "$tip"; printf '100644 blob %s\tunreviewed.txt\n' "$blob"; } | git mktree)
+  child=$(git commit-tree "$tree" -p "$tip" -m 'sneak: unreviewed change')
+  git update-ref refs/heads/evolve/slug "$child" "$tip"
+fi
+exit 0
+HOOK
+chmod +x "$repo/.git/hooks/reference-transaction"
+base_before="$(origin_main)"
+rc=0; bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
+[ "$rc" != 0 ] || fail "reported success although evolve/slug moved during landing"
+base_unchanged 'delivery branch advanced mid-run'
+published="$(git -C "$origin" rev-parse evolve/slug)"
+[ "$(git -C "$repo" rev-parse "$published^{tree}")" = "$(git -C "$repo" rev-parse peerreview/slug^{tree})" ] \
+  || fail "published something other than the reviewed tree after evolve/slug moved"
+[ "$(git -C "$repo" rev-list --count "main..$published")" = 1 ] || fail "published commit is not one commit on the base"
+if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "opened a PR although evolve/slug moved during landing"; fi
+rm "$repo/.git/hooks/reference-transaction"
 
 # The destination that is inspected is the only one the push writes.
 fresh "$vocab"
@@ -400,31 +436,5 @@ landed="$(git -C "$repo" rev-parse evolve/slug)"
 rm "$origin/hooks/pre-receive"
 accepts "retry after push rejection" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "push retry re-squashed"
-
-fresh "$vocab"
-base_before="$(origin_main)"
-printf '#!/bin/sh\nexit 1\n' > "$repo/.git/hooks/pre-commit"
-chmod +x "$repo/.git/hooks/pre-commit"
-if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "commit failure ignored"; fi
-base_unchanged 'commit failure'
-if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened after commit failure"; fi
-[ "$(git -C "$repo" branch --show-current)" = evolve/slug ] || fail "commit failure on wrong branch"
-git -C "$repo" diff --cached --quiet && fail "commit failure lost staged review"
-rm "$repo/.git/hooks/pre-commit"
-git -C "$repo" commit -q -F "$msg"
-accepts "resume after completing the failed commit" "feat: land the review"
-
-fresh "$vocab"
-base_before="$(origin_main)"
-cat > "$repo/.git/hooks/pre-commit" <<'HOOK'
-#!/bin/sh
-printf 'hook formatting\n' >> file.txt
-git add file.txt
-HOOK
-chmod +x "$repo/.git/hooks/pre-commit"
-if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "published a hook-altered tree"; fi
-base_unchanged 'hook-altered tree'
-if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened for a hook-altered tree"; fi
-if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-altered tree pushed"; fi
 
 echo "delivery-branch.sh land preflight and PR delivery valid"
