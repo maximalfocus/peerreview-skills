@@ -169,6 +169,26 @@ case "$cmd" in
       2) ;; # no remote branch
       *) printf 'peerreview: cannot inspect origin/%s; nothing changed.\n' "$delivery" >&2; exit 1 ;;
     esac
+    # An open PR for the head is inspected before any local write and reused
+    # only as it stands: base, title, draft state and body must already be what
+    # land-evolution.sh will take. It is never rewritten; else the maintainer
+    # decides. gh calls are pinned to origin's push URL, even in a fork checkout
+    # where gh's default repository may be the upstream.
+    body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
+    body_of "$msgfile" > "$body"
+    subject="$(subject_of "$msgfile")"
+    pr_url=""
+    pr_row="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository,baseRefName,title,isDraft \
+      --jq '[.[] | select(.isCrossRepository == false)][0] | select(. != null) | [.url, .baseRefName, .title, (.isDraft | tostring)] | join("\t")')"
+    if [ -n "$pr_row" ]; then
+      IFS=$'\t' read -r pr_url pr_base pr_title pr_draft <<< "$pr_row"
+      pr_body="$(gh pr view "$pr_url" --repo "$origin_url" --json body --jq .body | tr -d '\r')"
+      want_body="$(tr -d '\r' < "$body")"
+      [ "$pr_body" = "$want_body" ] && body_state=same || body_state=differs
+      [ "$pr_base" = "$base" ] && [ "$pr_title" = "$subject" ] && [ "$pr_draft" = false ] && [ "$body_state" = same ] \
+        || { printf 'peerreview: the open pull request for %s (%s) is not what the message file describes: base %s (want %s), title "%s" (want "%s"), draft %s (want false), body %s. Fix the PR or the message file, then re-run; nothing was changed.\n' \
+               "$delivery" "$pr_url" "$pr_base" "$base" "$pr_title" "$subject" "$pr_draft" "$body_state" >&2; exit 1; }
+    fi
     if git show-ref --verify --quiet "refs/heads/$delivery"; then
       git checkout -q "$delivery"
     elif [ -n "$delivery_oid" ]; then
@@ -186,20 +206,7 @@ case "$cmd" in
       || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
     printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"
     git push -q -u origin "refs/heads/$delivery:refs/heads/$delivery"
-    # Pin provider operations to the repository we pushed, even in a fork
-    # checkout where gh's default repository may be the upstream.
-    body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
-    body_of "$msgfile" > "$body"
-    subject="$(subject_of "$msgfile")"
-    pr_row="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository,baseRefName,title,isDraft \
-      --jq '[.[] | select(.isCrossRepository == false)][0] | select(. != null) | [.url, .baseRefName, .title, (.isDraft | tostring)] | join("\t")')"
-    if [ -n "$pr_row" ]; then
-      IFS=$'\t' read -r pr_url pr_base pr_title pr_draft <<< "$pr_row"
-      # A reused PR is never rewritten: it is accepted only when it already
-      # carries what land-evolution.sh checks, else the maintainer decides.
-      [ "$pr_base" = "$base" ] && [ "$pr_title" = "$subject" ] && [ "$pr_draft" = false ] \
-        || { printf 'peerreview: the open pull request for %s (%s) has base %s, title "%s", draft %s; expected base %s, title "%s", not a draft. Fix the PR or the message file, then re-run.\n' \
-               "$delivery" "$pr_url" "$pr_base" "$pr_title" "$pr_draft" "$base" "$subject" >&2; exit 1; }
+    if [ -n "$pr_url" ]; then
       printf 'peerreview: reusing the open pull request for %s\n' "$delivery"
     else
       pr_url="$(gh pr create --repo "$origin_url" --base "$base" --head "$delivery" --title "$subject" --body-file "$body")"

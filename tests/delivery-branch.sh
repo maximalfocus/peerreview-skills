@@ -35,6 +35,9 @@ case "$1 $2" in
   "pr create")
     while [ $# -gt 0 ]; do [ "$1" = --body-file ] && cp "$2" "${GH_FAKE_BODY:?}"; shift; done
     printf 'https://example.invalid/pr/1\n' ;;
+  "pr view")
+    if [ -n "${GH_FAKE_PR_BODY+x}" ]; then printf '%s\n' "$GH_FAKE_PR_BODY"
+    elif [ -f "${GH_FAKE_BODY:?}" ]; then cat "$GH_FAKE_BODY"; fi ;;
   *) echo "fake gh: unexpected $*" >&2; exit 1 ;;
 esac
 FAKE_GH
@@ -83,9 +86,11 @@ refuses() { # refuses DESC FRAGMENT
   [ ! -e "$GH_FAKE_LOG" ] || fail "$desc: gh was called during a refusal"
 }
 
+creates() { grep -c '^pr create ' "$GH_FAKE_LOG" 2>/dev/null || true; }
+
 accepts() { # accepts DESC EXPECTED_SUBJECT
-  local desc="$1" want="$2" got main_before out
-  main_before="$(origin_main)"
+  local desc="$1" want="$2" got main_before out creates_before
+  main_before="$(origin_main)"; creates_before="$(creates)"; creates_before="${creates_before:-0}"
   out="$(bash "$script" land "$repo" slug "$msg")" || fail "rejected $desc"
   got="$(git -C "$repo" log -1 --format=%s)"
   [ "$got" = "$want" ] || fail "$desc: landed subject was '$got', want '$want'"
@@ -99,9 +104,15 @@ accepts() { # accepts DESC EXPECTED_SUBJECT
     || fail "$desc: squashed tree differs from the review branch"
   [ "$(git -C "$origin" rev-parse evolve/slug)" = "$(git -C "$repo" rev-parse evolve/slug)" ] || fail "$desc: evolve/slug not pushed"
   git -C "$repo" rev-parse --verify --quiet peerreview/slug >/dev/null || fail "$desc: review branch was not retained"
-  # The PR is opened against the base branch with the subject as title.
-  grep -qx "pr create --repo $origin --base main --head evolve/slug --title $want --body-file .*" "$GH_FAKE_LOG" \
-    || fail "$desc: no matching pr create in $(cat "$GH_FAKE_LOG")"
+  # The PR is opened against the base branch with the subject as title — once;
+  # an existing PR (GH_FAKE_EXISTING) is reused and none is opened.
+  if [ -n "${GH_FAKE_EXISTING:-}" ]; then
+    [ "$(creates)" = "$creates_before" ] || fail "$desc: opened a PR although one exists: $(cat "$GH_FAKE_LOG")"
+  else
+    [ "$(creates)" = "$((creates_before + 1))" ] || fail "$desc: expected exactly one new pr create in $(cat "$GH_FAKE_LOG")"
+    grep -qx "pr create --repo $origin --base main --head evolve/slug --title $want --body-file .*" "$GH_FAKE_LOG" \
+      || fail "$desc: no matching pr create in $(cat "$GH_FAKE_LOG")"
+  fi
   case "$out" in *"https://example.invalid/pr/1"*) ;; *) fail "$desc: PR URL not printed: $out" ;; esac
 }
 
@@ -233,21 +244,30 @@ git -C "$repo" branch -D evolve/slug >/dev/null
 GH_FAKE_EXISTING="$(existing_pr)" accepts "reuse of remote-only delivery" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "remote delivery re-squashed"
 
-# Operational failures retain a recoverable delivery and never move either
-# base. These are distinct from local preflight refusals (which call no gh).
-for operation in 'pr list' 'pr create'; do
-  fresh "$vocab"
-  printf 'feat: land the review\n\nBody.\n' > "$msg"
-  base_before="$(origin_main)"
-  rc=0
-  GH_FAKE_FAIL="$operation" bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
-  [ "$rc" = 42 ] || fail "$operation: failure was not propagated"
-  base_unchanged "$operation failure"
-  [ -z "$(git -C "$repo" status --porcelain)" ] || fail "$operation: dirty failure state"
-  landed="$(git -C "$repo" rev-parse evolve/slug)"
-  accepts "retry after $operation failure" "feat: land the review"
-  [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "$operation: retry re-squashed"
-done
+# A provider failure before the first write leaves nothing behind; one after
+# the push retains a recoverable delivery. Neither moves either base.
+fresh "$vocab"
+printf 'feat: land the review\n\nBody.\n' > "$msg"
+base_before="$(origin_main)"; refs_before="$(git -C "$repo" show-ref)"
+rc=0
+GH_FAKE_FAIL='pr list' bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 42 ] || fail "pr list: failure was not propagated"
+base_unchanged 'pr list failure'
+[ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "pr list failure wrote refs"
+[ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "pr list failure moved the checkout"
+accepts "retry after pr list failure" "feat: land the review"
+
+fresh "$vocab"
+printf 'feat: land the review\n\nBody.\n' > "$msg"
+base_before="$(origin_main)"
+rc=0
+GH_FAKE_FAIL='pr create' bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 42 ] || fail "pr create: failure was not propagated"
+base_unchanged 'pr create failure'
+[ -z "$(git -C "$repo" status --porcelain)" ] || fail "pr create: dirty failure state"
+landed="$(git -C "$repo" rev-parse evolve/slug)"
+accepts "retry after pr create failure" "feat: land the review"
+[ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "pr create: retry re-squashed"
 
 # A same-tree delivery that differs only by a gitlink is still a different
 # tree: `git diff --quiet` would call it equal under diff.ignoreSubmodules=all.
@@ -261,22 +281,36 @@ git -C "$repo" commit -q --amend --no-edit
 git -C "$repo" checkout -q peerreview/slug
 refuses "a delivery differing only by a gitlink" "exists but differs"
 
-# An open PR for the head is reused only as it stands: a title, base or draft
-# state land-evolution.sh would refuse is reported, never rewritten.
-for wrong in "main	docs: another title	false" "release	feat: land the review	false" "main	feat: land the review	true"; do
+# An open PR for the head is reused only as it stands: a title, base, draft
+# state or body other than the message file's is reported before any local
+# write — from the review branch, with an existing delivery — never rewritten.
+for wrong in "main	docs: another title	false	Body." "release	feat: land the review	false	Body." "main	feat: land the review	true	Body." "main	feat: land the review	false	Old evidence."; do
   fresh "$vocab"
   printf 'feat: land the review\n\nBody.\n' > "$msg"
   accepts "initial delivery before a mismatched PR" "feat: land the review"
+  git -C "$repo" checkout -q peerreview/slug
   landed="$(git -C "$repo" rev-parse evolve/slug)"; base_before="$(origin_main)"; : > "$GH_FAKE_LOG"
-  IFS='	' read -r w_base w_title w_draft <<< "$wrong"
-  err="$(GH_FAKE_EXISTING="$(existing_pr "$w_base" "$w_title" "$w_draft")" bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" \
-    && fail "reused a PR with base=$w_base title='$w_title' draft=$w_draft"
+  refs_before="$(git -C "$repo" show-ref)"
+  IFS='	' read -r w_base w_title w_draft w_body <<< "$wrong"
+  err="$(GH_FAKE_EXISTING="$(existing_pr "$w_base" "$w_title" "$w_draft")" GH_FAKE_PR_BODY="$w_body" bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" \
+    && fail "reused a PR with base=$w_base title='$w_title' draft=$w_draft body='$w_body'"
   case "$err" in *"Fix the PR or the message file"*) ;; *) fail "mismatched PR refused for the wrong reason: $err" ;; esac
   base_unchanged 'mismatched PR'
+  [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "mismatched PR refusal wrote refs"
+  [ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "mismatched PR refusal moved the checkout"
+  [ -z "$(git -C "$repo" status --porcelain)" ] || fail "mismatched PR refusal dirtied the tree"
   [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "mismatched PR re-squashed the delivery"
   if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "mismatched PR led to a second PR"; fi
-  if grep -q '^pr edit ' "$GH_FAKE_LOG"; then fail "mismatched PR was rewritten"; fi
+  if grep -qv '^pr list \|^pr view ' "$GH_FAKE_LOG"; then fail "mismatched PR refusal made a non-read-only gh call: $(cat "$GH_FAKE_LOG")"; fi
 done
+# The same PR with the same body is reused from the review branch, once.
+fresh "$vocab"
+printf 'feat: land the review\n\nBody.\n' > "$msg"
+accepts "initial delivery before a matching reuse" "feat: land the review"
+git -C "$repo" checkout -q peerreview/slug
+landed="$(git -C "$repo" rev-parse evolve/slug)"; : > "$GH_FAKE_LOG"
+GH_FAKE_EXISTING="$(existing_pr)" GH_FAKE_PR_BODY=$'Body.\r' accepts "reuse of a matching PR (CRLF body)" "feat: land the review"
+[ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "matching reuse re-squashed"
 
 fresh "$vocab"
 base_before="$(origin_main)"
@@ -284,7 +318,7 @@ printf '#!/bin/sh\nexit 1\n' > "$origin/hooks/pre-receive"
 chmod +x "$origin/hooks/pre-receive"
 if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "push rejection ignored"; fi
 base_unchanged 'push rejection'
-[ ! -e "$GH_FAKE_LOG" ] || fail "gh called after a rejected push"
+if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened after a rejected push"; fi
 [ -z "$(git -C "$repo" status --porcelain)" ] || fail "push rejection dirtied tree"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 rm "$origin/hooks/pre-receive"
@@ -297,7 +331,7 @@ printf '#!/bin/sh\nexit 1\n' > "$repo/.git/hooks/pre-commit"
 chmod +x "$repo/.git/hooks/pre-commit"
 if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "commit failure ignored"; fi
 base_unchanged 'commit failure'
-[ ! -e "$GH_FAKE_LOG" ] || fail "gh called after commit failure"
+if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened after commit failure"; fi
 [ "$(git -C "$repo" branch --show-current)" = evolve/slug ] || fail "commit failure on wrong branch"
 git -C "$repo" diff --cached --quiet && fail "commit failure lost staged review"
 rm "$repo/.git/hooks/pre-commit"
@@ -314,7 +348,7 @@ HOOK
 chmod +x "$repo/.git/hooks/pre-commit"
 if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "published a hook-altered tree"; fi
 base_unchanged 'hook-altered tree'
-[ ! -e "$GH_FAKE_LOG" ] || fail "gh called for hook-altered tree"
+if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened for a hook-altered tree"; fi
 if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-altered tree pushed"; fi
 
 echo "delivery-branch.sh land preflight and PR delivery valid"
