@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-cdd-implementation
 description: "Peer-review lenses for CDD implementation repos — Stage 1 conformance compliance, stub detection, architecture-fitness assertions, suppressed-violation audit"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: CDD implementation repo

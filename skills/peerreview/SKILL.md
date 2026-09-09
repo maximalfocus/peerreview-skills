@@ -1,7 +1,6 @@
 ---
 name: peerreview
-description: "Cross-model co-editing peer-review gate. A HOST harness and an independent cross-vendor PEER co-edit until a fresh active charter is satisfied and verification is green. Tier-1 peers are Claude Code and the Codex CLI; Pi/DeepSeek-Harness are the tier-2 fallback. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
-disable-model-invocation: true
+description: "Cross-model co-editing peer-review gate. A HOST harness and an independent cross-vendor PEER co-edit until a fresh active charter is satisfied and verification is green. Tier-1 peers are Claude Code and the Codex CLI; Pi/DeepSeek-Harness are the tier-2 fallback. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or by the user delegating it to an agent, including explicit /cdd-auto delegation."
 allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(claude *) Bash(codex *) Bash(pi *) Bash(dsh *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
 argument-hint: "[repo_path] [--chat] [--dry-run]"
 ---
@@ -13,7 +12,7 @@ You are the **reviewer and manager**. The independent **PEER model** is the
 repo objectively solves the problem it claims to — not after a fixed number of
 rounds.
 
-This skill is **user-initiated only**. Producers may suggest it but must not invoke it. The sole exception is `/cdd-auto`: the user's explicit auto invocation authorizes its mandatory per-wave calls to this canonical skill. Treat each as a normal `/peerreview` run—never let cdd-auto imitate or bypass this workflow.
+This skill is **user-initiated**: directly, or by the user explicitly delegating a review to an agent, which then runs this skill unchanged. A producer skill may suggest it but must not invoke it on its own initiative. `/cdd-auto` is one such delegation: the user's explicit auto invocation authorizes its mandatory per-wave calls to this canonical skill. Treat each as a normal `/peerreview` run—never let cdd-auto imitate or bypass this workflow.
 
 ## First: read the constitution
 
