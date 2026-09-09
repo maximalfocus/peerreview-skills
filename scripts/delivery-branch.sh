@@ -88,6 +88,12 @@ subject_preflight() {
   [ "${#subject}" -le 72 ] \
     || reject "the subject is ${#subject} characters, over the 72 budget (N-4): $subject"
 
+  # One line of plain text: a tab or other control character would survive the
+  # shape check, be normalised away in the PR title, and never match on re-run.
+  case "$subject" in
+    *[[:cntrl:]]*) reject "the subject contains a control character (N-4 wants one line of plain text): $subject" ;;
+  esac
+
   printf '%s' "$subject" | grep -qE '^[a-z][a-z0-9]*(\([a-z0-9]+(-[a-z0-9]+)*\))?: .+$' \
     || reject "the subject is not '<type>(<scope>)?: <description>' (N-4): $subject"
 
@@ -179,9 +185,10 @@ case "$cmd" in
     subject="$(subject_of "$msgfile")"
     pr_url=""
     pr_row="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository,baseRefName,title,isDraft \
-      --jq '[.[] | select(.isCrossRepository == false)][0] | select(. != null) | [.url, .baseRefName, .title, (.isDraft | tostring)] | join("\t")')"
+      --jq '[.[] | select(.isCrossRepository == false)][0] | select(. != null) | [.url, .baseRefName, (.isDraft | tostring), .title] | join("\t")')"
     if [ -n "$pr_row" ]; then
-      IFS=$'\t' read -r pr_url pr_base pr_title pr_draft <<< "$pr_row"
+      # The free-text title is the last field, so `read` keeps it whole.
+      IFS=$'\t' read -r pr_url pr_base pr_draft pr_title <<< "$pr_row"
       pr_body="$(gh pr view "$pr_url" --repo "$origin_url" --json body --jq .body | tr -d '\r')"
       want_body="$(tr -d '\r' < "$body")"
       [ "$pr_body" = "$want_body" ] && body_state=same || body_state=differs

@@ -44,7 +44,7 @@ FAKE_GH
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 export GH_FAKE_LOG="$tmp/gh.log" GH_FAKE_BODY="$tmp/gh.body"
-existing_pr() { printf 'https://example.invalid/pr/1\t%s\t%s\t%s' "${1:-main}" "${2:-feat: land the review}" "${3:-false}"; }
+existing_pr() { printf 'https://example.invalid/pr/1\t%s\t%s\t%s' "${1:-main}" "${3:-false}" "${2:-feat: land the review}"; }
 
 fresh() { # two review rounds: copying the review head must not pass the squash assertion
   rm -rf "$repo" "$origin" "$GH_FAKE_LOG" "$GH_FAKE_BODY"; mkdir -p "$repo"
@@ -140,6 +140,9 @@ refuses "a capitalised description" "starts with a capital"
 
 printf 'feat: 123 examples\n' > "$msg"
 refuses "a description that does not start with a letter" "start with a lowercase letter"
+
+printf 'feat: keep\ttabs\n' > "$msg"
+refuses "a subject with a tab" "control character"
 
 printf 'chore: land the review\n' > "$msg"
 refuses "a type outside the reviewed repo's vocabulary" "is not one the reviewed repository allows"
