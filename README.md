@@ -51,6 +51,7 @@ peerreview-skills/
 ├── scripts/round-support.sh            ← portable per-round deadline + failure tail
 ├── scripts/git-guard.sh                ← shared PEER git-mutation guard
 ├── scripts/delivery-branch.sh          ← review-on-a-branch, landed as one-commit PR
+├── scripts/width.sh                    ← 100-character line gate + lossless rewrap
 ├── scripts/chat-review-temp.sh         ← ephemeral `--chat` workspace lifecycle
 ├── scripts/peer-auth.sh                ← credential-safe per-side auth preflight
 ├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
@@ -58,6 +59,7 @@ peerreview-skills/
 ├── scripts/review-anchor.sh            ← durable convergence-tag checkpoints
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
 ├── tests/round-drivers.sh              ← peer routing, driver, and guard smoke tests
+├── tests/width.sh                      ← width.sh check/fix behaviour
 ├── LICENSE                             ← MIT
 └── README.md
 ```
