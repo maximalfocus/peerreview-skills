@@ -54,9 +54,9 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   mechanical grammar.
 - **PR title (N-2).** Character-identical to the issue it delivers. If the
   wording is wrong, edit the issue first, then match it.
-- **Branch (N-3).** Routine work commits directly to `main` here, which
-  overrides N-3. When a change does use a branch, name it
-  `issue/<issue-number>-<lowercase-kebab-slug>`.
+- **Branch (N-3).** `main` is protected and takes pull requests only. An
+  evolution uses `evolve/<lowercase-kebab-slug>` and its PR title is the N-4
+  commit subject; issue work uses `issue/<issue-number>-<lowercase-kebab-slug>`.
 - **Commit subject (N-4).** `<type>(<scope>)?: <lowercase imperative>`, at most
   72 authored characters — a provider-added trailing ` (#N)` sits outside that
   budget. Scope is one kebab-case identifier: no spaces, no colon, one scope
