@@ -276,22 +276,21 @@ category is the recurring one — it traces to the layering ADR and is *added du
 pre-authoring PLAN never lists it), plus stated totals that no longer match (`Est.`-column forecast
 vs the suites' coverage-doc counts); **(c) ADR cross-references** point at the *correct local* ADR
 (a PLAN citing "ADR-0004" for a deploy decision when ADR-0004 is the frontend-layering ADR and
-ADR-0005 is the deploy ADR is a real mis-pointer); **(d) deploy topology terms** vs the actual IaC
-+ infra-conformance (`network.tf` had only public/private tiers and the
-`aws_db_subnet_group` over `aws_subnet.private[*]`, so a PLAN saying RDS sits in "isolated subnets"
-contradicts both the Terraform and the deploy ADR). The decisive failure mode to avoid: **a PLAN's
-own "to be scaffolded post-approval" wording (and a charter residual copied from it) LAGS reality**
-— do not trust it; `ls ~/personal/{project}-*` (the siblings live as sibling dirs, not always `../`)
-and reconcile against what actually exists. For **forecast-vs-authored count drift**, prefer an
-**additive "As-authored sibling reconciliation" section** that records the real category set +
-totals while leaving the pre-authoring `Est.` arithmetic intact for the single-repo gate — rewriting
-the estimate numbers silently breaks the gate's `core+stack+frontend=total` check.
-(urlshortener-demo-prd 2026-06-10 cross-repo re-run: the 2026-06-08 pass DEFERRED Lens 6 as a
-residual trusting the PLAN's "not yet scaffolded" wording — but all 7 siblings already existed and
-the deploy had run; the owed cross-repo pass then found 4 real divergences in one Codex round + 1
-neutral-verdict round — unused-Alembic, the unforecast `architecture/dependencies` category [5
-backend + 3 frontend goldens, 33+19=52 as-authored vs the `≈38` estimate], the ADR-0004→0005
-mis-pointer, and isolated→private subnets.)
+ADR-0005 is the deploy ADR is a real mis-pointer); **(d) deploy topology terms** vs the actual IaC +
+infra-conformance (`network.tf` had only public/private tiers and the `aws_db_subnet_group` over
+`aws_subnet.private[*]`, so a PLAN saying RDS sits in "isolated subnets" contradicts both the
+Terraform and the deploy ADR). The decisive failure mode to avoid: **a PLAN's own "to be scaffolded
+post-approval" wording (and a charter residual copied from it) LAGS reality** — do not trust it; `ls
+~/personal/{project}-*` (the siblings live as sibling dirs, not always `../`) and reconcile against
+what actually exists. For **forecast-vs-authored count drift**, prefer an **additive "As-authored
+sibling reconciliation" section** that records the real category set + totals while leaving the
+pre-authoring `Est.` arithmetic intact for the single-repo gate — rewriting the estimate numbers
+silently breaks the gate's `core+stack+frontend=total` check. (urlshortener-demo-prd 2026-06-10
+cross-repo re-run: the 2026-06-08 pass DEFERRED Lens 6 as a residual trusting the PLAN's "not yet
+scaffolded" wording — but all 7 siblings already existed and the deploy had run; the owed cross-repo
+pass then found 4 real divergences in one Codex round + 1 neutral-verdict round — unused-Alembic,
+the unforecast `architecture/dependencies` category [5 backend + 3 frontend goldens, 33+19=52
+as-authored vs the `≈38` estimate], the ADR-0004→0005 mis-pointer, and isolated→private subnets.)
 
 ### Lens 7 — Numeric / geometry well-definedness & totality (math/renderer/simulation PRDs)
 
