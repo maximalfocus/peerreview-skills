@@ -82,6 +82,9 @@ subject_preflight() {
   local msgfile="$1" subject type desc allowed
   [ -r "$msgfile" ] || { printf 'peerreview: cannot read message file: %s\n' "$msgfile" >&2; exit 66; }
 
+  # Judge the bytes on disk: awk would silently truncate a line at a NUL.
+  [ "$(tr -d '\000' < "$msgfile" | wc -c | tr -d ' ')" -eq "$(wc -c < "$msgfile" | tr -d ' ')" ] \
+    || reject "the message file contains a NUL byte"
   subject="$(subject_of "$msgfile")"
   [ -n "$subject" ] || reject "the message file has no non-blank line to use as a subject"
 
@@ -136,8 +139,9 @@ case "$cmd" in
     subject_preflight "$msgfile"
     base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
     # Pinned against user config: status.showUntrackedFiles=no would hide a
-    # pending new file from both cleanliness checks.
-    tree="$(git status --porcelain --untracked-files=all)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
+    # pending new file, and submodule.<name>.ignore a dirty submodule, from
+    # both cleanliness checks.
+    tree="$(git status --porcelain --untracked-files=all --ignore-submodules=none)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
     [ -z "$tree" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
     [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
     # Resolve branch refs, never a same-named tag. An advanced/diverged base
@@ -159,12 +163,20 @@ case "$cmd" in
     fi
     # Check origin before any local write. Unknown remote objects require an
     # explicit fetch first; this refusal itself must not change local refs.
-    origin_url="$(git remote get-url --push origin)"
+    # Every URL the push would write is the one that was inspected: refuse a
+    # remote with several push URLs rather than preflight only the first.
+    origin_url="$(git remote get-url --push --all origin)"
+    [ "$(printf '%s\n' "$origin_url" | wc -l | tr -d ' ')" -eq 1 ] \
+      || { printf 'peerreview: origin has more than one push URL; land delivers to exactly one destination.\n' >&2; exit 1; }
     remote_status=0
     remote_info="$(git ls-remote --exit-code --heads "$origin_url" "refs/heads/$delivery")" || remote_status=$?
+    if [ "$remote_status" -eq 0 ]; then
+      # ls-remote's pattern matches any ref ENDING in it; take the exact ref only.
+      remote_oid="$(printf '%s\n' "$remote_info" | awk -v ref="refs/heads/$delivery" '$2 == ref { print $1; exit }')"
+      [ -n "$remote_oid" ] || remote_status=2
+    fi
     case "$remote_status" in
       0)
-        remote_oid="${remote_info%%[[:space:]]*}"
         git cat-file -e "$remote_oid^{commit}" 2>/dev/null \
           || { printf 'peerreview: origin/%s is not available locally; fetch that branch, then re-run.\n' "$delivery" >&2; exit 1; }
         [ "$(tree_of "$remote_oid")" = "$(tree_of "$review_oid")" ] \
@@ -210,7 +222,7 @@ case "$cmd" in
     fi
     # Commit hooks may stage formatting changes or leave edits behind. Do not
     # publish anything except the reviewed tree, even after a successful commit.
-    tree="$(git status --porcelain --untracked-files=all)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
+    tree="$(git status --porcelain --untracked-files=all --ignore-submodules=none)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
     [ "$(tree_of HEAD)" = "$(tree_of "$review_oid")" ] && [ -z "$tree" ] \
       || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
     printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"

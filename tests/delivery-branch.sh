@@ -74,14 +74,14 @@ base_unchanged() {
 refuses() { # refuses DESC FRAGMENT
   local desc="$1" frag="$2" before err branch_before slug="${3:-slug}" refs_before tree_before
   before="$(head_before)"; branch_before="$(git -C "$repo" rev-parse --abbrev-ref HEAD)"
-  refs_before="$(git -C "$repo" show-ref)"; tree_before="$(git -C "$repo" status --porcelain --untracked-files=all)"
+  refs_before="$(git -C "$repo" show-ref)"; tree_before="$(git -C "$repo" status --porcelain --untracked-files=all --ignore-submodules=none)"
   err="$(bash "$script" land "$repo" "$slug" "$msg" 2>&1 >/dev/null)" && fail "accepted $desc"
   case "$err" in *"$frag"*) ;; *) fail "rejected $desc for the wrong reason: $err" ;; esac
   # The preflight's justification: a rejection mutates nothing.
   [ "$(head_before)" = "$before" ] || fail "$desc: HEAD moved during a refusal"
   [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" = "$branch_before" ] \
     || fail "$desc: branch changed during a refusal"
-  [ "$(git -C "$repo" status --porcelain --untracked-files=all)" = "$tree_before" ] || fail "$desc: working tree changed during a refusal"
+  [ "$(git -C "$repo" status --porcelain --untracked-files=all --ignore-submodules=none)" = "$tree_before" ] || fail "$desc: working tree changed during a refusal"
   [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "$desc: refs changed during a refusal"
   [ ! -e "$GH_FAKE_LOG" ] || fail "$desc: gh was called during a refusal"
 }
@@ -143,6 +143,9 @@ refuses "a description that does not start with a letter" "start with a lowercas
 
 printf 'feat: keep\ttabs\n' > "$msg"
 refuses "a subject with a tab" "control character"
+
+printf 'feat: keep\0nul\n' > "$msg"
+refuses "a message file with a NUL byte" "NUL byte"
 
 printf 'chore: land the review\n' > "$msg"
 refuses "a type outside the reviewed repo's vocabulary" "is not one the reviewed repository allows"
@@ -267,7 +270,7 @@ rc=0
 GH_FAKE_FAIL='pr create' bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
 [ "$rc" = 42 ] || fail "pr create: failure was not propagated"
 base_unchanged 'pr create failure'
-[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "pr create: dirty failure state"
+[ -z "$(git -C "$repo" status --porcelain --untracked-files=all --ignore-submodules=none)" ] || fail "pr create: dirty failure state"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 accepts "retry after pr create failure" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "pr create: retry re-squashed"
@@ -301,7 +304,7 @@ for wrong in "main	docs: another title	false	Body." "release	feat: land the revi
   base_unchanged 'mismatched PR'
   [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "mismatched PR refusal wrote refs"
   [ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "mismatched PR refusal moved the checkout"
-  [ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "mismatched PR refusal dirtied the tree"
+  [ -z "$(git -C "$repo" status --porcelain --untracked-files=all --ignore-submodules=none)" ] || fail "mismatched PR refusal dirtied the tree"
   [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "mismatched PR re-squashed the delivery"
   if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "mismatched PR led to a second PR"; fi
   if grep -qv '^pr list \|^pr view ' "$GH_FAKE_LOG"; then fail "mismatched PR refusal made a non-read-only gh call: $(cat "$GH_FAKE_LOG")"; fi
@@ -335,6 +338,33 @@ base_unchanged 'hook-created untracked file'
 if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened with a hook-created untracked file"; fi
 if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-created untracked file was pushed past"; fi
 
+# The destination that is inspected is the only one the push writes.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+git -C "$repo" remote set-url --add --push origin "$origin"
+git -C "$repo" remote set-url --add --push origin "$tmp/second.git"
+refuses "a remote with two push URLs" "more than one push URL"
+
+# ls-remote's pattern also matches a ref that merely ends in the delivery
+# name; only the exact ref counts as an existing delivery.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+git -C "$repo" push -q origin main:refs/heads/x/refs/heads/evolve/slug
+accepts "a remote ref that merely ends in the delivery name" "feat: land the review"
+
+# A dirty populated submodule hidden by submodule.<name>.ignore=all still
+# refuses, before any write and before any gh call.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+sub="$tmp/sub"; rm -rf "$sub"; git init -q "$sub"
+git -C "$sub" config user.email test@example.invalid; git -C "$sub" config user.name Test
+printf 'lib\n' > "$sub/lib.txt"; git -C "$sub" add lib.txt; git -C "$sub" commit -qm lib
+git -C "$repo" -c protocol.file.allow=always submodule add -q "$sub" vendored-sub >/dev/null 2>&1
+git -C "$repo" commit -qm 'peerreview: round 3'
+git -C "$repo" config submodule.vendored-sub.ignore all
+printf 'changed\n' > "$repo/vendored-sub/lib.txt"
+refuses "a dirty submodule hidden by submodule.<name>.ignore=all" "working tree not clean"
+
 fresh "$vocab"
 printf 'feat: land the review\n' > "$msg"
 base_before="$(origin_main)"
@@ -343,7 +373,7 @@ chmod +x "$origin/hooks/pre-receive"
 if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "push rejection ignored"; fi
 base_unchanged 'push rejection'
 if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened after a rejected push"; fi
-[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "push rejection dirtied tree"
+[ -z "$(git -C "$repo" status --porcelain --untracked-files=all --ignore-submodules=none)" ] || fail "push rejection dirtied tree"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 rm "$origin/hooks/pre-receive"
 accepts "retry after push rejection" "feat: land the review"
