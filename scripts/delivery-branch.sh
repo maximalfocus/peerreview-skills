@@ -34,6 +34,9 @@ set -euo pipefail
 # git's default `whitespace` cleanup for `commit -F` drops leading blank lines,
 # so the subject is the first NON-BLANK line, not necessarily line 1.
 subject_of() { awk 'NF { print; exit }' "$1"; }
+# Tree identity is compared by object id: `git diff --quiet` honours
+# diff.ignoreSubmodules and would call two commits equal across a gitlink change.
+tree_of() { git rev-parse --verify "$1^{tree}"; }
 # The PR body is everything after the subject and its one blank separator; the
 # squash merge takes both title and body from the PR, so nothing is lost.
 body_of() { awk 'state == 0 && !NF { next } state == 0 { state = 1; next } state == 1 { state = 2; if (!NF) next } { print }' "$1"; }
@@ -126,7 +129,8 @@ case "$cmd" in
     msgfile="${4:?message file}"
     subject_preflight "$msgfile"
     base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
-    [ -z "$(git status --porcelain)" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
+    tree="$(git status --porcelain)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
+    [ -z "$tree" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
     [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
     # Resolve branch refs, never a same-named tag. An advanced/diverged base
     # must be reviewed first: merging it here could introduce unreviewed changes.
@@ -140,7 +144,7 @@ case "$cmd" in
     delivery_oid=""
     if git show-ref --verify --quiet "refs/heads/$delivery"; then
       delivery_oid="$(git rev-parse "refs/heads/$delivery")"
-      git diff --quiet "$delivery_oid" "$review_oid" \
+      [ "$(tree_of "$delivery_oid")" = "$(tree_of "$review_oid")" ] \
         || { printf 'peerreview: %s exists but differs from %s; delete or rename it and re-run.\n' "$delivery" "$branch" >&2; exit 1; }
       [ "$(git rev-list --parents -n 1 "$delivery_oid")" = "$delivery_oid $base_oid" ] \
         || { printf 'peerreview: %s must be exactly one non-merge commit on the recorded base; preserve it and use a new slug.\n' "$delivery" >&2; exit 1; }
@@ -155,7 +159,7 @@ case "$cmd" in
         remote_oid="${remote_info%%[[:space:]]*}"
         git cat-file -e "$remote_oid^{commit}" 2>/dev/null \
           || { printf 'peerreview: origin/%s is not available locally; fetch that branch, then re-run.\n' "$delivery" >&2; exit 1; }
-        git diff --quiet "$remote_oid" "$review_oid" \
+        [ "$(tree_of "$remote_oid")" = "$(tree_of "$review_oid")" ] \
           || { printf 'peerreview: origin/%s exists but differs from the reviewed tree; preserve it and use a new slug.\n' "$delivery" >&2; exit 1; }
         [ "$(git rev-list --parents -n 1 "$remote_oid")" = "$remote_oid $base_oid" ] \
           || { printf 'peerreview: origin/%s is not one commit on the recorded base.\n' "$delivery" >&2; exit 1; }
@@ -177,7 +181,8 @@ case "$cmd" in
     fi
     # Commit hooks may stage formatting changes or leave edits behind. Do not
     # publish anything except the reviewed tree, even after a successful commit.
-    git diff --quiet HEAD "$review_oid" && [ -z "$(git status --porcelain)" ] \
+    tree="$(git status --porcelain)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
+    [ "$(tree_of HEAD)" = "$(tree_of "$review_oid")" ] && [ -z "$tree" ] \
       || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
     printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"
     git push -q -u origin "refs/heads/$delivery:refs/heads/$delivery"
@@ -186,8 +191,15 @@ case "$cmd" in
     body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
     body_of "$msgfile" > "$body"
     subject="$(subject_of "$msgfile")"
-    pr_url="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository --jq '[.[] | select(.isCrossRepository == false)][0].url // empty')"
-    if [ -n "$pr_url" ]; then
+    pr_row="$(gh pr list --repo "$origin_url" --head "$delivery" --state open --json url,isCrossRepository,baseRefName,title,isDraft \
+      --jq '[.[] | select(.isCrossRepository == false)][0] | select(. != null) | [.url, .baseRefName, .title, (.isDraft | tostring)] | join("\t")')"
+    if [ -n "$pr_row" ]; then
+      IFS=$'\t' read -r pr_url pr_base pr_title pr_draft <<< "$pr_row"
+      # A reused PR is never rewritten: it is accepted only when it already
+      # carries what land-evolution.sh checks, else the maintainer decides.
+      [ "$pr_base" = "$base" ] && [ "$pr_title" = "$subject" ] && [ "$pr_draft" = false ] \
+        || { printf 'peerreview: the open pull request for %s (%s) has base %s, title "%s", draft %s; expected base %s, title "%s", not a draft. Fix the PR or the message file, then re-run.\n' \
+               "$delivery" "$pr_url" "$pr_base" "$pr_title" "$pr_draft" "$base" "$subject" >&2; exit 1; }
       printf 'peerreview: reusing the open pull request for %s\n' "$delivery"
     else
       pr_url="$(gh pr create --repo "$origin_url" --base "$base" --head "$delivery" --title "$subject" --body-file "$body")"

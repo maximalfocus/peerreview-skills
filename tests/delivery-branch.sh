@@ -22,7 +22,8 @@ origin="$tmp/origin.git"
 msg="$tmp/msg"
 
 # Offline gh: records every call, hands back the PR body it was given, and
-# answers `pr list` with GH_FAKE_EXISTING (a PR that already exists for the head).
+# answers `pr list` with GH_FAKE_EXISTING — the script's own --jq row for a PR
+# that already exists for the head: url, base, title, draft, tab-separated.
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<'FAKE_GH'
 #!/usr/bin/env bash
@@ -40,6 +41,7 @@ FAKE_GH
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
 export GH_FAKE_LOG="$tmp/gh.log" GH_FAKE_BODY="$tmp/gh.body"
+existing_pr() { printf 'https://example.invalid/pr/1\t%s\t%s\t%s' "${1:-main}" "${2:-feat: land the review}" "${3:-false}"; }
 
 fresh() { # two review rounds: copying the review head must not pass the squash assertion
   rm -rf "$repo" "$origin" "$GH_FAKE_LOG" "$GH_FAKE_BODY"; mkdir -p "$repo"
@@ -93,7 +95,8 @@ accepts() { # accepts DESC EXPECTED_SUBJECT
   # The delivery branch holds exactly one squashed commit with the reviewed tree, and is pushed.
   [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" = evolve/slug ] || fail "$desc: not left on evolve/slug"
   [ "$(git -C "$repo" rev-list --count main..evolve/slug)" = 1 ] || fail "$desc: evolve/slug is not one commit ahead of main"
-  git -C "$repo" diff --quiet evolve/slug peerreview/slug || fail "$desc: squashed tree differs from the review branch"
+  [ "$(git -C "$repo" rev-parse evolve/slug^{tree})" = "$(git -C "$repo" rev-parse peerreview/slug^{tree})" ] \
+    || fail "$desc: squashed tree differs from the review branch"
   [ "$(git -C "$origin" rev-parse evolve/slug)" = "$(git -C "$repo" rev-parse evolve/slug)" ] || fail "$desc: evolve/slug not pushed"
   git -C "$repo" rev-parse --verify --quiet peerreview/slug >/dev/null || fail "$desc: review branch was not retained"
   # The PR is opened against the base branch with the subject as title.
@@ -180,7 +183,7 @@ accepts "a message with a body" "feat: land the review"
 [ "$(cat "$GH_FAKE_BODY")" = "$(printf 'Evidence: round 1.\n\nKept: everything.')" ] \
   || fail "PR body was not the message body: $(cat "$GH_FAKE_BODY")"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
-GH_FAKE_EXISTING=https://example.invalid/pr/1 accepts "a re-run after the PR exists" "feat: land the review"
+GH_FAKE_EXISTING="$(existing_pr)" accepts "a re-run after the PR exists" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "re-run re-squashed the delivery branch"
 [ "$(grep -c '^pr create' "$GH_FAKE_LOG")" = 1 ] || fail "re-run opened a second PR: $(cat "$GH_FAKE_LOG")"
 
@@ -227,7 +230,7 @@ accepts "initial delivery before remote-only retry" "feat: land the review"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 git -C "$repo" checkout -q peerreview/slug
 git -C "$repo" branch -D evolve/slug >/dev/null
-GH_FAKE_EXISTING=https://example.invalid/pr/1 accepts "reuse of remote-only delivery" "feat: land the review"
+GH_FAKE_EXISTING="$(existing_pr)" accepts "reuse of remote-only delivery" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "remote delivery re-squashed"
 
 # Operational failures retain a recoverable delivery and never move either
@@ -244,6 +247,35 @@ for operation in 'pr list' 'pr create'; do
   landed="$(git -C "$repo" rev-parse evolve/slug)"
   accepts "retry after $operation failure" "feat: land the review"
   [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "$operation: retry re-squashed"
+done
+
+# A same-tree delivery that differs only by a gitlink is still a different
+# tree: `git diff --quiet` would call it equal under diff.ignoreSubmodules=all.
+fresh "$vocab"
+git -C "$repo" config diff.ignoreSubmodules all
+git -C "$repo" checkout -q -b evolve/slug main
+git -C "$repo" merge -q --squash peerreview/slug >/dev/null
+git -C "$repo" commit -qm 'feat: land the review'
+git -C "$repo" update-index --add --cacheinfo "160000,$(git -C "$repo" rev-parse HEAD),vendored"
+git -C "$repo" commit -q --amend --no-edit
+git -C "$repo" checkout -q peerreview/slug
+refuses "a delivery differing only by a gitlink" "exists but differs"
+
+# An open PR for the head is reused only as it stands: a title, base or draft
+# state land-evolution.sh would refuse is reported, never rewritten.
+for wrong in "main	docs: another title	false" "release	feat: land the review	false" "main	feat: land the review	true"; do
+  fresh "$vocab"
+  printf 'feat: land the review\n\nBody.\n' > "$msg"
+  accepts "initial delivery before a mismatched PR" "feat: land the review"
+  landed="$(git -C "$repo" rev-parse evolve/slug)"; base_before="$(origin_main)"; : > "$GH_FAKE_LOG"
+  IFS='	' read -r w_base w_title w_draft <<< "$wrong"
+  err="$(GH_FAKE_EXISTING="$(existing_pr "$w_base" "$w_title" "$w_draft")" bash "$script" land "$repo" slug "$msg" 2>&1 >/dev/null)" \
+    && fail "reused a PR with base=$w_base title='$w_title' draft=$w_draft"
+  case "$err" in *"Fix the PR or the message file"*) ;; *) fail "mismatched PR refused for the wrong reason: $err" ;; esac
+  base_unchanged 'mismatched PR'
+  [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "mismatched PR re-squashed the delivery"
+  if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "mismatched PR led to a second PR"; fi
+  if grep -q '^pr edit ' "$GH_FAKE_LOG"; then fail "mismatched PR was rewritten"; fi
 done
 
 fresh "$vocab"
