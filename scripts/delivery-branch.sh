@@ -135,7 +135,9 @@ case "$cmd" in
     msgfile="${4:?message file}"
     subject_preflight "$msgfile"
     base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
-    tree="$(git status --porcelain)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
+    # Pinned against user config: status.showUntrackedFiles=no would hide a
+    # pending new file from both cleanliness checks.
+    tree="$(git status --porcelain --untracked-files=all)" || { printf 'peerreview: cannot read the working tree state.\n' >&2; exit 1; }
     [ -z "$tree" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
     [ "$base" != "$delivery" ] || { printf 'peerreview: base and delivery branch must differ; restore the base recorded at start.\n' >&2; exit 1; }
     # Resolve branch refs, never a same-named tag. An advanced/diverged base
@@ -208,7 +210,7 @@ case "$cmd" in
     fi
     # Commit hooks may stage formatting changes or leave edits behind. Do not
     # publish anything except the reviewed tree, even after a successful commit.
-    tree="$(git status --porcelain)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
+    tree="$(git status --porcelain --untracked-files=all)" || { printf 'peerreview: cannot read the working tree state after the commit; nothing pushed.\n' >&2; exit 1; }
     [ "$(tree_of HEAD)" = "$(tree_of "$review_oid")" ] && [ -z "$tree" ] \
       || { printf 'peerreview: delivery changed during commit; retained locally for review, nothing pushed.\n' >&2; exit 1; }
     printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"

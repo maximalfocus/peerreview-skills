@@ -74,14 +74,14 @@ base_unchanged() {
 refuses() { # refuses DESC FRAGMENT
   local desc="$1" frag="$2" before err branch_before slug="${3:-slug}" refs_before tree_before
   before="$(head_before)"; branch_before="$(git -C "$repo" rev-parse --abbrev-ref HEAD)"
-  refs_before="$(git -C "$repo" show-ref)"; tree_before="$(git -C "$repo" status --porcelain)"
+  refs_before="$(git -C "$repo" show-ref)"; tree_before="$(git -C "$repo" status --porcelain --untracked-files=all)"
   err="$(bash "$script" land "$repo" "$slug" "$msg" 2>&1 >/dev/null)" && fail "accepted $desc"
   case "$err" in *"$frag"*) ;; *) fail "rejected $desc for the wrong reason: $err" ;; esac
   # The preflight's justification: a rejection mutates nothing.
   [ "$(head_before)" = "$before" ] || fail "$desc: HEAD moved during a refusal"
   [ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" = "$branch_before" ] \
     || fail "$desc: branch changed during a refusal"
-  [ "$(git -C "$repo" status --porcelain)" = "$tree_before" ] || fail "$desc: working tree changed during a refusal"
+  [ "$(git -C "$repo" status --porcelain --untracked-files=all)" = "$tree_before" ] || fail "$desc: working tree changed during a refusal"
   [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "$desc: refs changed during a refusal"
   [ ! -e "$GH_FAKE_LOG" ] || fail "$desc: gh was called during a refusal"
 }
@@ -267,7 +267,7 @@ rc=0
 GH_FAKE_FAIL='pr create' bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1 || rc=$?
 [ "$rc" = 42 ] || fail "pr create: failure was not propagated"
 base_unchanged 'pr create failure'
-[ -z "$(git -C "$repo" status --porcelain)" ] || fail "pr create: dirty failure state"
+[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "pr create: dirty failure state"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 accepts "retry after pr create failure" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "pr create: retry re-squashed"
@@ -301,7 +301,7 @@ for wrong in "main	docs: another title	false	Body." "release	feat: land the revi
   base_unchanged 'mismatched PR'
   [ "$(git -C "$repo" show-ref)" = "$refs_before" ] || fail "mismatched PR refusal wrote refs"
   [ "$(git -C "$repo" branch --show-current)" = peerreview/slug ] || fail "mismatched PR refusal moved the checkout"
-  [ -z "$(git -C "$repo" status --porcelain)" ] || fail "mismatched PR refusal dirtied the tree"
+  [ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "mismatched PR refusal dirtied the tree"
   [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "mismatched PR re-squashed the delivery"
   if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "mismatched PR led to a second PR"; fi
   if grep -qv '^pr list \|^pr view ' "$GH_FAKE_LOG"; then fail "mismatched PR refusal made a non-read-only gh call: $(cat "$GH_FAKE_LOG")"; fi
@@ -315,14 +315,35 @@ landed="$(git -C "$repo" rev-parse evolve/slug)"; : > "$GH_FAKE_LOG"
 GH_FAKE_EXISTING="$(existing_pr)" GH_FAKE_PR_BODY=$'Body.\r' accepts "reuse of a matching PR (CRLF body)" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "matching reuse re-squashed"
 
+# Cleanliness is judged independently of user config: a pending new file
+# hidden by status.showUntrackedFiles=no still refuses, before any write and
+# before any gh call, and a hook that leaves one behind still blocks the push.
 fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+git -C "$repo" config status.showUntrackedFiles no
+printf 'pending\n' > "$repo/pending.txt"
+refuses "an untracked file hidden by status.showUntrackedFiles=no" "working tree not clean"
+rm "$repo/pending.txt"
+
+fresh "$vocab"
+base_before="$(origin_main)"
+git -C "$repo" config status.showUntrackedFiles no
+printf '#!/bin/sh\nprintf leftover > leftover.txt\n' > "$repo/.git/hooks/pre-commit"
+chmod +x "$repo/.git/hooks/pre-commit"
+if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "published with a hook-created untracked file"; fi
+base_unchanged 'hook-created untracked file'
+if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened with a hook-created untracked file"; fi
+if git -C "$origin" show-ref --verify --quiet refs/heads/evolve/slug; then fail "hook-created untracked file was pushed past"; fi
+
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
 base_before="$(origin_main)"
 printf '#!/bin/sh\nexit 1\n' > "$origin/hooks/pre-receive"
 chmod +x "$origin/hooks/pre-receive"
 if bash "$script" land "$repo" slug "$msg" >/dev/null 2>&1; then fail "push rejection ignored"; fi
 base_unchanged 'push rejection'
 if grep -q '^pr create ' "$GH_FAKE_LOG"; then fail "PR opened after a rejected push"; fi
-[ -z "$(git -C "$repo" status --porcelain)" ] || fail "push rejection dirtied tree"
+[ -z "$(git -C "$repo" status --porcelain --untracked-files=all)" ] || fail "push rejection dirtied tree"
 landed="$(git -C "$repo" rev-parse evolve/slug)"
 rm "$origin/hooks/pre-receive"
 accepts "retry after push rejection" "feat: land the review"
