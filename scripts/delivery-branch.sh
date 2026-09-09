@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Review-on-a-branch delivery: run the loop on a review branch, then land it on
-# the delivery branch as ONE squashed commit after the PEER returns CONVERGED.
+# Review-on-a-branch delivery: run the loop on a review branch, then land it as
+# ONE squashed commit on a delivery branch, pushed and opened as a pull request
+# against the base branch, after the PEER returns CONVERGED.
 #
 # Standing user preference (2026-08-18/19, asked on three consecutive runs): the
 # round-by-round history is review evidence, not product history, so the
-# reviewed repo should receive a single reviewed commit.
+# reviewed repo should receive a single reviewed commit. Since 2026-09-09 the
+# default branch is protected (PR required, squash only), so `land` never
+# writes it: the squashed commit stays on evolve/<slug>, and the merge happens
+# only through `~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the
+# maintainer's explicit instruction.
 #
 # Usage:
 #   delivery-branch.sh start <repo> <slug>          -> create/checkout peerreview/<slug>
-#   delivery-branch.sh land  <repo> <slug> <msgfile> -> squash-merge into the base branch
+#   delivery-branch.sh land  <repo> <slug> <msgfile> -> squash onto evolve/<slug>, push, open the PR
 #
 # land preflights the message file's subject against N-4 before touching git.
 #
@@ -27,6 +32,9 @@ set -euo pipefail
 # git's default `whitespace` cleanup for `commit -F` drops leading blank lines,
 # so the subject is the first NON-BLANK line, not necessarily line 1.
 subject_of() { awk 'NF { print; exit }' "$1"; }
+# The PR body is everything after the subject and its one blank separator; the
+# squash merge takes both title and body from the PR, so nothing is lost.
+body_of() { awk 'state == 0 && !NF { next } state == 0 { state = 1; next } state == 1 { state = 2; if (!NF) next } { print }' "$1"; }
 
 # The reviewed repo owns its vocabulary: the `Types:` line in root AGENTS.md,
 # else root CLAUDE.md. A repo declaring none is unconstrained, and so is one
@@ -94,8 +102,12 @@ subject_preflight() {
 }
 
 cmd="${1:?start|land}"; repo="${2:?repo}"; slug="${3:?slug}"
+# The delivery branch is the N-3 evolve/<slug> that land-evolution.sh accepts.
+printf '%s' "$slug" | grep -qE '^[a-z0-9]+(-[a-z0-9]+)*$' \
+  || { printf 'peerreview: slug must be lowercase kebab-case (N-3): %s\n' "$slug" >&2; exit 64; }
 cd "$repo"
 branch="peerreview/$slug"
+delivery="evolve/$slug"
 
 case "$cmd" in
   start)
@@ -111,11 +123,31 @@ case "$cmd" in
     subject_preflight "$msgfile"
     base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
     [ -z "$(git status --porcelain)" ] || { printf 'peerreview: working tree not clean; commit the last round first.\n' >&2; exit 1; }
-    git checkout -q "$base"
-    git merge --squash "$branch" >/dev/null
-    git commit -q -F "$msgfile"
-    printf 'peerreview: squash-merged %s into %s as %s\n' "$branch" "$base" "$(git rev-parse --short HEAD)"
-    printf 'peerreview: review branch retained locally with its round commits.\n'
+    # The base branch is never written: the squash lands on the delivery branch.
+    # A re-run after a failed push or PR call reuses the delivery branch as long
+    # as it still holds exactly the reviewed tree.
+    if git rev-parse --verify --quiet "$delivery" >/dev/null; then
+      git diff --quiet "$delivery" "$branch" \
+        || { printf 'peerreview: %s exists but differs from %s; delete or rename it and re-run.\n' "$delivery" "$branch" >&2; exit 1; }
+      git checkout -q "$delivery"
+    else
+      git checkout -q -b "$delivery" "$base"
+      git merge --squash "$branch" >/dev/null
+      git commit -q -F "$msgfile"
+    fi
+    printf 'peerreview: squashed %s onto %s as %s (base %s untouched)\n' "$branch" "$delivery" "$(git rev-parse --short HEAD)" "$base"
+    git push -q -u origin "$delivery"
+    pr_url="$(gh pr list --head "$delivery" --state open --json url --jq '.[0].url // empty')"
+    if [ -n "$pr_url" ]; then
+      printf 'peerreview: reusing the open pull request for %s\n' "$delivery"
+    else
+      body="$(mktemp "${TMPDIR:-/tmp}/peerreview-pr-body.XXXXXX")"; trap 'rm -f "$body"' EXIT
+      body_of "$msgfile" > "$body"
+      pr_url="$(gh pr create --base "$base" --head "$delivery" --title "$(subject_of "$msgfile")" --body-file "$body")"
+    fi
+    printf 'peerreview: pull request %s\n' "$pr_url"
+    printf 'peerreview: checkout left on %s; review branch retained locally with its round commits.\n' "$delivery"
+    printf 'peerreview: merge only via land-evolution.sh <PR> on explicit instruction; never push %s.\n' "$base"
     ;;
   *) printf 'peerreview: unknown command %s\n' "$cmd" >&2; exit 64 ;;
 esac

@@ -82,10 +82,11 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   subject costs a re-run, never a half-landed review. What it deliberately does
   not check is whether the description reads as an imperative — no script can,
   so that half of N-4 stays a rule you follow rather than one you are stopped
-  by. If a review ever lands through
-  `gh pr merge --squash` instead, pass `--subject` explicitly rather than
-  accepting the provider's untyped default, and never put a type prefix on the
-  PR title — that breaks N-2 instead.
+  by. `land` never writes the base branch: it pushes the squash on
+  `evolve/<slug>` and opens the PR titled with that subject, and
+  `~/personal/idd-skills/scripts/land-evolution.sh <PR>` squash-merges it as
+  `<title> (#PR)` on explicit instruction — so the landed subject is still the
+  msgfile's, and the PR title must stay that subject, not be re-prefixed.
 - **Private material.** This repository is private today; the rule is
   prospective, because a leak recorded now survives into any later publication.
   Never name the private companion product-contract repository (this project's

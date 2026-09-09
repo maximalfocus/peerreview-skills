@@ -53,7 +53,7 @@ peerreview-skills/
 ├── scripts/dsh-round.sh                ← DeepSeek Harness driver (tier 2, CDD repos)
 ├── scripts/round-support.sh            ← portable per-round deadline + failure tail
 ├── scripts/git-guard.sh                ← shared PEER git-mutation guard
-├── scripts/delivery-branch.sh          ← review-on-a-branch, landed as one commit
+├── scripts/delivery-branch.sh          ← review-on-a-branch, landed as one-commit PR
 ├── scripts/chat-review-temp.sh         ← ephemeral `--chat` workspace lifecycle
 ├── scripts/peer-auth.sh                ← credential-safe per-side auth preflight
 ├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
