@@ -297,13 +297,14 @@ runners:
   self-authored conformance suite at every round AND drove **18 substantive Lens-6 defects across 6
   neutral-verdict rounds** (trajectory 4 → 5 → 3 → 3 → 2 → 1, monotonically decreasing): `scan`
   bound-but-unused, effective permissions ignoring job-level override, download-without-upload,
-  negated-`==` main gate, `scan:resolved` missing workflow/job/step `env:` + `container.credentials`
-  + `services.*.credentials` + caller `with:` + `concurrency.group`, one-level-only `workflow_call`,
-  sole-push-required branch-filter fallback, recursive `needs:`-on-uses-job rewriting at every
-  inline level, `repo_scan` walking only the resolved workflow set. Same pattern as the prior two —
-  green suite + 100% coverage hides everywhere the option/clause has only one tested value. **The
-  Lens-6 sweep is now the primary engine for DSL-evaluator impls; don't skimp on rounds — a long
-  monotonic-decrease trajectory is healthy, not non-progress.**
+  negated-`==` main gate, `scan:resolved` missing workflow/job/step `env:` +
+  `container.credentials` + `services.*.credentials` + caller `with:` + `concurrency.group`,
+  one-level-only `workflow_call`, sole-push-required branch-filter fallback, recursive
+  `needs:`-on-uses-job rewriting at every inline level, `repo_scan` walking only the resolved
+  workflow set. Same pattern as the prior two — green suite + 100% coverage hides everywhere the
+  option/clause has only one tested value. **The Lens-6 sweep is now the primary engine for
+  DSL-evaluator impls; don't skimp on rounds — a long monotonic-decrease trajectory is healthy, not
+  non-progress.**
 
 If you cannot verify the runner is comparing correctly, treat the green suite as suspect and call
 this out as a finding.
@@ -690,8 +691,8 @@ the lineage.** A syntax form NO sibling's `src/` ever used is unhardened across 
 (it never surfaced), so the clone inherits the hole: **root aliasing** (`use crate as x;` /
 `crate::{self as x}` / `extern crate self as x` — renames the root so a later `x::tests` edge is
 untrackable) was fail-closed-MISSING in the entire bitmask→ringbuffer→skiplist→lrucache Rust lineage
-and only surfaced on the cross-vendor pass. So the inherited-hardened scanner still warrants 1 edit
-+ verdict, not a rubber stamp. **And the in-process RUNNER (`run_op`/`run_interaction`) is a
+and only surfaced on the cross-vendor pass. So the inherited-hardened scanner still warrants 1
+edit + verdict, not a rubber stamp. **And the in-process RUNNER (`run_op`/`run_interaction`) is a
 SEPARATE fresh surface from the scanner** — cloning the scanner does NOT clone runner-input-shape
 robustness: red-probe Lens-6 malformed goldens (extra/unknown op keys, missing/null fields, and any
 contract IDENTITY invariant the impl doesn't enforce — e.g. a `label` that "names exactly one
