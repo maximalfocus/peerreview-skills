@@ -163,9 +163,9 @@ machine. Concretely, in this mode:
   terminal state here — not a failure, so do not "fail loud" about the
   absent push.
 
-This exception governs only the **repo under review**. Self-evolving and
-pushing `peerreview-skills` (in `~/personal`, outside `~/projects`) is unaffected
-and still unconditional.
+This exception governs only the **repo under review**. Self-evolving
+`peerreview-skills` (in `~/personal`, outside `~/projects`) is unaffected: a kept
+change is still proposed unconditionally, as a PR (`CONSTITUTION.md` Article 9).
 
 ## Step 1 — Read the charter adversarially
 
@@ -943,7 +943,7 @@ paid off, a recurring defect class the gate structurally missed, a skill bug or
 stale path — invoke **`/peerreview-evolve`** (post-review mode). It filters the
 candidate through `CONSTITUTION.md` (proof matched to the claim's scope), edits the
 matching `peerreview-approach-*` lens or main Step, validates the size gate, and
-commits. A one-off `CONVERGED, no durable lesson` run evolves **nothing** — the
+proposes a PR. A one-off `CONVERGED, no durable lesson` run evolves **nothing** — the
 trigger is pull-based, so a non-actionable run simply leaves no trace. The
 git history of the skills is the record; never re-create a patterns/index log.
 
@@ -985,7 +985,7 @@ git history of the skills is the record; never re-create a patterns/index log.
 - **Methodology evolution is a filter, not a log** (`CONSTITUTION.md` Article 1):
   no `evolution/` log, no every-run self-evolve+push. A durable lesson is routed
   through `/peerreview-evolve`, which gates it against the constitution and
-  commits; a non-actionable run leaves no trace.
+  proposes a PR; a non-actionable run leaves no trace.
 - Every repository run ends by pushing the reviewed repo (fail loud if a push cannot
   complete). **Exceptions:** under the **Path-scoped git policy** the
   *reviewed repo* is never committed or pushed (left for manual Windows-side

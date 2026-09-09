@@ -2,14 +2,15 @@
 
 Evolution here is governed by [`CONSTITUTION.md`](CONSTITUTION.md) — a **filter, not an accumulator**. A finding either passes the constitution and is integrated into a skill file, or it fails and **nothing happens**. There is no `evolution/` log; the former `INDEX.md` / `PATTERNS.md` / `runs/` were removed on 2026-07-03 (git history is the record, the raw session traces are the diagnostic source). Re-creating any such log is a violation of Article 1.
 
-## Commit and push after edits — do not wait to be asked
+## Commit and propose after edits — do not wait to be asked
 
-The user has standing authorization (2026-06-13) to commit and push routine work in this repo without being prompted each time. When a task that modifies `skills/` or `CONSTITUTION.md` reaches a clean stopping point, commit and push it yourself.
+The user has standing authorization (2026-06-13) to commit routine work in this repo and open its pull request without being prompted each time. When a task that modifies `skills/` or `CONSTITUTION.md` reaches a clean stopping point, propose it yourself. Since 2026-09-09 `main` is protected on GitHub (ruleset `require-pull-request`: PR required, squash only, linear history, no force-push, no deletion, no bypass) — a direct push is refused.
 
-- **Stage only this task's changeset.** Use explicit `git add <paths>` — **never `git add -A`**. This repo can carry unrelated dirty files from sibling/parallel sessions; sweeping them into an unrelated commit is the failure mode to avoid.
-- **Write a real message** in the repo's `evolve:` / `fix:` / `research:` style, ending with the `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` trailer.
-- **Commit directly to `main`.** `git pull --rebase origin main` before committing so the push is a fast-forward; retry the rebase+push on a non-fast-forward rejection (≤3). Never force-push, never branch/PR for routine evolve edits.
-- Scope of the standing authorization: routine skill/evolution edits + their push. Still confirm for destructive git ops (history rewrite, force-push, file deletions) and any outward-facing action beyond this push.
+- **Verify first.** `bash ~/personal/idd-skills/scripts/protect-main.sh verify` before an evolve pass edits anything.
+- **Stage only this task's changeset.** `propose.sh` commits exactly the paths you name — **never `git add -A`**. This repo can carry unrelated dirty files from sibling/parallel sessions; sweeping them into an unrelated commit is the failure mode to avoid.
+- **Write a real message** with an N-4 subject in the repo's `evolve:` / `fix:` style and the evidence in the body, ending with the `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` trailer.
+- **Propose, never push `main`.** From `main` equal to `origin/main` with nothing staged, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>` commits on `evolve/<slug>`, pushes, opens the PR (title = subject, body = message body), and returns you to `main`. Never force-push. Stop and report the PR URL.
+- **Landing is the maintainer's call.** After review (by hand or `/peerreview`), only `bash ~/personal/idd-skills/scripts/land-evolution.sh <PR>` on explicit instruction squash-merges (`<title> (#PR)`), fast-forwards `main`, and deletes the branch locally and on origin. Still confirm for destructive git ops (history rewrite, force-push, file deletions) and any outward-facing action beyond the PR.
 
 This is the same discipline `CONSTITUTION.md` Article 9 encodes.
 
@@ -54,18 +55,18 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   mechanical grammar.
 - **PR title (N-2).** Character-identical to the issue it delivers. If the
   wording is wrong, edit the issue first, then match it.
-- **Branch (N-3).** Routine work commits directly to `main` here, which
-  overrides N-3. When a change does use a branch, name it
-  `issue/<issue-number>-<lowercase-kebab-slug>`.
+- **Branch (N-3).** Nothing commits directly to `main` here. Kept evolve
+  changes travel on `evolve/<lowercase-kebab-slug>` (created by `propose.sh`);
+  issue work uses `issue/<issue-number>-<lowercase-kebab-slug>`.
 - **Commit subject (N-4).** `<type>(<scope>)?: <lowercase imperative>`, at most
   72 authored characters — a provider-added trailing ` (#N)` sits outside that
   budget. Scope is one kebab-case identifier: no spaces, no colon, one scope
   only. Evidence, rationale and measurements belong in the body, never the
   subject.
-  Types: `evolve` `fix` `research` `peerreview` `feat` `docs` `test` `refactor`
-  `chore` `ci`
-  (`evolve`/`fix`/`research` are this repo's established style; `peerreview:` is
-  emitted by round commits — keep them.)
+  Types: `evolve` `fix` `feat` `docs` `test` `refactor` `perf` `chore` `build`
+  `ci` — the set `propose.sh` accepts as a PR title.
+  (`evolve`/`fix` are this repo's established style; `peerreview:` round commits
+  stay on review branches and are squashed away, never landed as-is.)
 - **Landed subject.** The squash-exception other families carry does not apply
   here: `scripts/delivery-branch.sh land` squashes **locally**
   (`git merge --squash` + `git commit -F <msgfile>`), so no provider derives a
