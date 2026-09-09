@@ -1,7 +1,6 @@
 ---
 name: peerreview-evolve
 description: "peerreview methodology evolution — filter review lessons and pull-based research through the constitution: pass → integrate into a skill and commit; fail → do nothing. No logs."
-disable-model-invocation: true
 allowed-tools: Read Write Edit Grep Glob Bash(git *) Bash(wc *) Bash(ls *) Bash(bash *)
 argument-hint: "[research|post-review|simplify]"
 ---

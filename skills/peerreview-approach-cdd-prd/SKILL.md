@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-cdd-prd
 description: "Peer-review lenses for CDD `{project}-prd/` repos — PRD↔PLAN traceability, tech-stack data integrity, requirements coverage, approach rationale presence"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: CDD PRD repo

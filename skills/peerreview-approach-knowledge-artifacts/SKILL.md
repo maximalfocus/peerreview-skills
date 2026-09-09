@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-knowledge-artifacts
 description: "Peer-review lenses for knowledge-skills study repos — citation fidelity, cross-artifact consistency, concept-graph integrity, and diagram validation"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: knowledge artifacts

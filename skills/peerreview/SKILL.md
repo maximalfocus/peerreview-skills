@@ -1,7 +1,6 @@
 ---
 name: peerreview
-description: "Cross-model co-editing peer-review gate. A HOST harness and an independent cross-vendor PEER co-edit until a fresh active charter is satisfied and verification is green. Tier-1 peers are Claude Code and the Codex CLI; Pi/DeepSeek-Harness are the tier-2 fallback. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or through explicit /cdd-auto delegation."
-disable-model-invocation: true
+description: "Cross-model co-editing peer-review gate. A HOST harness and an independent cross-vendor PEER co-edit until a fresh active charter is satisfied and verification is green. Tier-1 peers are Claude Code and the Codex CLI; Pi/DeepSeek-Harness are the tier-2 fallback. The charter is ephemeral, convergence has a hard floor of 1 peer round and no upper cap. User-initiated, directly or by the user delegating it to an agent, including explicit /cdd-auto delegation."
 allowed-tools: Read Write Edit Grep Glob Task Bash(git *) Bash(claude *) Bash(codex *) Bash(pi *) Bash(dsh *) Bash(ls *) Bash(test *) Bash(mkdir *) Bash(bash *) Bash(python3 *) Bash(ruby *) Bash(npm *) Bash(npx *) Bash(sed *) Bash(grep *) Bash(awk *) Bash(cat *)
 argument-hint: "[repo_path] [--chat] [--dry-run]"
 ---
@@ -13,7 +12,7 @@ You are the **reviewer and manager**. The independent **PEER model** is the
 repo objectively solves the problem it claims to — not after a fixed number of
 rounds.
 
-This skill is **user-initiated only**. Producers may suggest it but must not invoke it. The sole exception is `/cdd-auto`: the user's explicit auto invocation authorizes its mandatory per-wave calls to this canonical skill. Treat each as a normal `/peerreview` run—never let cdd-auto imitate or bypass this workflow.
+This skill is **user-initiated**: directly, or by the user explicitly delegating a review to an agent, which then runs this skill unchanged. A producer skill may suggest it but must not invoke it on its own initiative. `/cdd-auto` is one such delegation: the user's explicit auto invocation authorizes its mandatory per-wave calls to this canonical skill. Treat each as a normal `/peerreview` run—never let cdd-auto imitate or bypass this workflow.
 
 ## First: read the constitution
 
@@ -103,7 +102,7 @@ failure**). A same-HOST review is never a substitute.
    No/non-ancestor anchor, changed intent, or unbounded/cross-cutting impact selects **full**; otherwise select **incremental** anchor→HEAD + impact closure (consumers, contracts, tests, docs, migrations, generated artifacts).
    Incremental is never diff-only: run the full gate and escalate if impact cannot be bounded. Under `~/projects` (tags are forbidden git writes), always select full. In `--chat` mode, select full and skip checkpoint fetch because the wrapper has no remote or prior anchor.
 6. **Self-test the active charter's Verification gate before the loop:** from
-   repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^`.
+   repo root, fix blind spots and enumerate durable sources, never charter prose; on a PR, diff gates cover the selected review range (base/anchor→HEAD), never only `HEAD^` — and "base" is the merge base (`git merge-base <base-branch> HEAD`, the three-dot range), never the base branch's tip: once the base has moved since branching, a two-dot diff shows landed work as if the PR reverted it (idd-skills PR #21 2026-09-09: a P1 "reverses the excluded fix" that was only the stale two-dot range).
 
 ### Chat-artifact delivery policy (`--chat`)
 
@@ -528,7 +527,7 @@ entire loop. The PEER never commits or pushes.
 product history. Unless the **Path-scoped git policy** or `--chat` applies, or
 durable intent names an OPEN PR whose head branch is already the review target,
 start the loop with `scripts/delivery-branch.sh start <repo> <slug>` and land it
-in Step 6 (standing user preference, asked on three consecutive runs 2026-08-18/19).
+as a PR in Step 6 (standing user preference, asked on three consecutive runs 2026-08-18/19).
 
 ## Step 4 — The convergence loop
 
@@ -720,9 +719,13 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    Codex's round-1 fix aligned to the blog and the `= 0` form also removed a real
    `u32` underflow panic on two-bullets-one-enemy. Settle the value against the
    raw primary source, e.g. de-tag its HTML, not either model's recollection.)
-5. **Commit the round**: `peerreview: round <N> — <one-line summary>`
-   (co-authored: HOST reviewer + PEER co-editor — name the actual two models
-   and tools, e.g. Claude Code reviewer + Codex CLI co-editor, or reversed). If a round makes things
+5. **Commit the round**: `peerreview: round <N> — <one-line summary>`; but when the
+   reviewed repo declares a commit-subject convention (`CLAUDE.md`/`AGENTS.md` types,
+   commitlint) it binds every branch commit and the PEER's verdict reads them, so
+   compose in that convention keeping `round <N>` (`chore(peerreview): <summary> in
+   round N`); reword only unpushed commits, a pushed one is a residual (idd-skills
+   2026-09-09: an 87-char `peerreview:` subject cost a NOT CONVERGED round). Co-author
+   HOST reviewer + PEER co-editor, naming the actual two models and tools. If a round makes things
    worse, `git revert`/reset to the prior round commit and re-issue tighter
    findings. *(Under the Path-scoped git policy: do not commit; undo a bad
    round via `git checkout`/`stash` from `HEAD` instead.)*
@@ -904,10 +907,13 @@ Before the terminal report, always clean review-owned charter state with
 A pre-existing repo-root `PROBLEM.md` is not review-owned and is never removed.
 
 On convergence, land a branch-mode review with `scripts/delivery-branch.sh
-land <repo> <slug> <msgfile>` — one squashed commit on the delivery branch
-whose first non-blank line `land` preflights as the N-4 subject — then push
-that branch and create/push the anchor tag.
-The review branch is kept locally; its round commits remain the detailed record.
+land <repo> <slug> <msgfile>` — one squashed commit on delivery branch `evolve/<slug>`
+whose first non-blank line `land` preflights as the N-4 subject; `land` pushes that
+branch, opens (or reuses) its PR against the base branch (title = subject, body =
+message body), prints the PR URL, and never writes the base branch — then
+create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh <PR>`
+on the maintainer's explicit instruction merges it, never this run. The review
+branch is kept locally; its round commits remain the detailed record.
 
 Then **always commit and push the reviewed repo** — every run, on
 convergence *or* non-progress abort, without asking. Push the working

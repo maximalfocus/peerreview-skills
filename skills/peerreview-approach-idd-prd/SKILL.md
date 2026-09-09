@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-idd-prd
 description: "Peer-review lenses for IDD `{project}-prd/` repos — PRD requirement/slice-ID ↔ PROGRESS.md tracker closure, tracker status semantics, invented-evidence detection, public/private boundary, reconstruction fidelity to a named source commit"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: IDD PRD repo

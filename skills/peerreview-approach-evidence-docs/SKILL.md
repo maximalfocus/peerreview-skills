@@ -1,7 +1,6 @@
 ---
 name: peerreview-approach-evidence-docs
 description: "Peer-review lenses for evidence-derived documentation repos — artifacts (diagrams/docs) whose correctness criterion is citation fidelity to EXTERNAL ground-truth repos"
-disable-model-invocation: true
 ---
 
 # Peer-review approach: evidence-derived documentation repo

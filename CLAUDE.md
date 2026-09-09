@@ -55,9 +55,11 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   mechanical grammar.
 - **PR title (N-2).** Character-identical to the issue it delivers. If the
   wording is wrong, edit the issue first, then match it.
-- **Branch (N-3).** Nothing commits directly to `main` here. Kept evolve
-  changes travel on `evolve/<lowercase-kebab-slug>` (created by `propose.sh`);
-  issue work uses `issue/<issue-number>-<lowercase-kebab-slug>`.
+- **Branch (N-3).** `main` is protected and takes pull requests only; nothing
+  commits directly to it. Kept evolve changes travel on
+  `evolve/<lowercase-kebab-slug>` (created by `propose.sh`) and their PR title
+  is the N-4 commit subject; issue work uses
+  `issue/<issue-number>-<lowercase-kebab-slug>`.
 - **Commit subject (N-4).** `<type>(<scope>)?: <lowercase imperative>`, at most
   72 authored characters — a provider-added trailing ` (#N)` sits outside that
   budget. Scope is one kebab-case identifier: no spaces, no colon, one scope
@@ -70,9 +72,9 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
 - **Landed subject.** The squash-exception other families carry does not apply
   here: `scripts/delivery-branch.sh land` squashes **locally**
   (`git merge --squash` + `git commit -F <msgfile>`), so no provider derives a
-  subject from a PR title and N-4 holds with nothing to work around. The
-  msgfile's first non-blank line IS the landed subject (git's `whitespace`
-  cleanup drops leading blanks) — write it as
+  subject from a PR title at this local step. The later PR landing uses the
+  PR title plus ` (#PR)` as its subject. Set that title to the msgfile's first
+  non-blank line (git's `whitespace` cleanup drops leading blanks), written as
   `<type>(<scope>)?: <lowercase imperative>`, at most 72 characters, with the
   round-by-round evidence in the body. That commit lands in the **reviewed**
   repository, so the type must come from *that* repository's `Types:`
@@ -83,12 +85,13 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   subject costs a re-run, never a half-landed review. What it deliberately does
   not check is whether the description reads as an imperative — no script can,
   so that half of N-4 stays a rule you follow rather than one you are stopped
-  by. If a review ever lands through
-  `gh pr merge --squash` instead, pass `--subject` explicitly rather than
-  accepting the provider's untyped default, and never put a type prefix on the
-  PR title — that breaks N-2 instead.
-- **Private material.** This repository is private today; the rule is
-  prospective, because a leak recorded now survives into any later publication.
+  by. `land` never writes the base branch: it pushes the squash on
+  `evolve/<slug>` and opens the PR titled with that subject, and
+  `~/personal/idd-skills/scripts/land-evolution.sh <PR>` squash-merges it as
+  `<title> (#PR)` on explicit instruction — the authored subject comes from
+  the msgfile, and the PR title must stay that subject, not be re-prefixed.
+- **Private material.** This repository is public; a leak recorded now
+  is immediately exposed and survives in retained history.
   Never name the private companion product-contract repository (this project's
   `{project}-prd` sibling), one of its documents, or one of its sections in a
   branch, commit, issue, or PR — not even in order to say what must not be
