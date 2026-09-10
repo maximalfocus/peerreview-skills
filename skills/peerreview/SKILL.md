@@ -89,7 +89,8 @@ review is never a substitute.
    where Step 6 would bypass the landing gate. Unless the **Path-scoped git policy** below applies,
    commit a clean baseline before the loop so every round's diff is attributable.
 4. **Create a fresh active review charter; never add review scaffolding to the repo.** Use the
-   schema in `templates/PROBLEM.md`, but create `PROBLEM.md` in a private temp directory with `bash
+   schema in `~/personal/peerreview-skills/templates/PROBLEM.md`, but create `PROBLEM.md` in a
+   private temp directory with `bash
    ~/personal/peerreview-skills/scripts/charter-temp.sh new`; retain the returned path as
    `ACTIVE_CHARTER`. Derive intent in this order: current explicit user instruction → declared
    upstream source → PRD/PLAN/spec → tests/docs. Implementation behavior is evidence, never intent
@@ -199,7 +200,8 @@ Modules live at `~/personal/peerreview-skills/skills/peerreview-approach-<profil
 - Inline in Step 2, no module: `prose-spec` (markdown-heavy, no code, declared-exhaustive tables);
   `derived-suite` (derived from a converged upstream spec: PLAN from PRD, design from requirements,
   a tutorial roadmap from a book TOC); `source-rendered` (diagram sources + committed renders) and
-  `html`, both in `templates/PROBLEM.md`; `code` (fallback, generic adversarial code review).
+  `html`, both in `~/personal/peerreview-skills/templates/PROBLEM.md`; `code` (fallback, generic
+  adversarial code review).
 
 A repo can match **multiple profiles** (e.g., a CDD implementation repo that also ships rendered
 architecture diagrams). Load all matching modules; their lenses compose. If no profile matches, fall
