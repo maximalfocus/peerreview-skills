@@ -197,6 +197,9 @@ Modules live at `~/personal/peerreview-skills/skills/peerreview-approach-<profil
   outside the repo + a charter Source of truth naming external repo paths.
 - `knowledge-artifacts` — `context/sources.md` + `context/sources_zh.md` and at least two of
   `concept_graph.md`, `critiques.md`, `deep_dive.md`, `summary_zh.md`.
+- `comic-design` — a (usually `--chat`) `ARTIFACT.md` that selects a four-panel (起承转合) comic
+  design: a candidate-pool table + a chosen design with four panels, often shipping its own
+  structural `check.py`. A specialization of `prose-spec`.
 - Inline in Step 2, no module: `prose-spec` (markdown-heavy, no code, declared-exhaustive tables);
   `derived-suite` (derived from a converged upstream spec: PLAN from PRD, design from requirements,
   a tutorial roadmap from a book TOC); `source-rendered` (diagram sources + committed renders) and
