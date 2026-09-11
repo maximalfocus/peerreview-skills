@@ -115,14 +115,16 @@ inert.)
 
 ## Verification gate amendments
 
-Append to the charter's `## Verification` block (run every round):
+Append to the charter's `## Verification` block (run every round). Save each Python block as a
+file and run `python3 <file>`: a here-document needs a temp file the PEER's read-only verdict
+sandbox cannot create (`cannot create temp file for here document`, nine Codex sessions across two
+repos, 2026-09-11), so a heredoc gate is one the PEER cannot rerun.
 
 - **ID closure** (Lens 1) — extract defined requirement IDs and slice IDs from the PRD, then require
   requirements to close through the explicit baseline coverage line or current rows and slices to
   close through the explicit baseline delivered-slices line or current rows:
 
-```sh
-python3 - <<'EOF'
+```python
 import re, sys
 prd = open('PRD.md').read(); prog = open('PROGRESS.md').read()
 REQ = r'(?:FR|NFR|BR|REQ|R)'; SLICE = r'(?:SLICE|S)'
@@ -165,7 +167,6 @@ if prog_req != prd_req:
 if prog_slice != prd_slice:
     sys.exit('slice closure: '
              f'missing={sorted(prd_slice-prog_slice)} orphan={sorted(prog_slice-prd_slice)}')
-EOF
 ```
 
   The authority surfaces and range expansion are load-bearing. Whole-file ID extraction
@@ -179,8 +180,7 @@ EOF
   not fixed), derive the closed vocabulary from the artifact's status-semantics bullets, and reject
   undeclared values:
 
-```sh
-python3 - <<'EOF'
+```python
 import re, sys
 s = open('PROGRESS.md').read()
 section = re.search(r'^## [^\n]*Status[^\n]*\n(.*?)(?=^## |\Z)', s, re.M | re.S | re.I)
@@ -205,7 +205,6 @@ for i, line in enumerate(s.splitlines(), 1):
         if value not in vocab: sys.exit(f'PROGRESS.md:{i} unknown status: {value}')
         checked += 1
 if not checked: sys.exit('gate blind: no tracker rows checked through a Status column')
-EOF
 ```
 
   The three vocabulary forms cover current IDD trackers: bold bullets, an inline arrow chain, or a
@@ -217,8 +216,7 @@ EOF
   rows. Do not use a fixed status-column index or require an issue/PR for a contract-authorized
   transition.
 
-```sh
-python3 - <<'EOF'
+```python
 import re, sys
 s = open('PROGRESS.md').read()
 if '## Implemented baseline' in s:
@@ -228,7 +226,6 @@ if '## Implemented baseline' in s:
 # Project-specific charter code locates the Status column as above, then for
 # each terminal current row requires either provider evidence (#N, /pull/N,
 # commit URL/SHA) or the PRD-authorized non-PR transition evidence it names.
-EOF
 ```
 
   Legacy artifact rows (PRD, naming, tracker) are exempt from provider-link rules; compact baselines
