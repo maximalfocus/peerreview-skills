@@ -13,6 +13,8 @@
 #
 # Usage:
 #   delivery-branch.sh start <repo> <slug>          -> create/checkout peerreview/<slug>
+#                                                      (in <repo>.worktrees/peerreview-<slug>
+#                                                      when installed skills link into <repo>)
 #   delivery-branch.sh land  <repo> <slug> <msgfile> -> squash onto evolve/<slug>, push, open the PR
 #
 # land preflights the message file's subject against N-4 before touching git.
@@ -117,6 +119,22 @@ subject_preflight() {
   fi
 }
 
+# Prints the first installed skill link (Claude Code, Agent Skills, Codex) that
+# resolves into this checkout, whether it links the skill directory or only its
+# SKILL.md; fails, printing nothing, when the checkout serves no installation.
+installed_skill_link() {
+  local top link p target
+  top="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
+  for link in "$HOME"/.claude/skills/* "$HOME"/.agents/skills/* "${CODEX_HOME:-$HOME/.codex}"/skills/*; do
+    for p in "$link" "$link/SKILL.md"; do
+      [ -L "$p" ] || continue
+      target="$(readlink -f "$p" 2>/dev/null)" || continue
+      case "$target/" in "$top"/*) printf '%s\n' "$link"; return 0 ;; esac
+    done
+  done
+  return 1
+}
+
 cmd="${1:?start|land}"; repo="${2:?repo}"; slug="${3:?slug}"
 # The delivery branch is the N-3 evolve/<slug> that land-evolution.sh accepts.
 [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] \
@@ -128,7 +146,24 @@ delivery="evolve/$slug"
 case "$cmd" in
   start)
     base="$(git rev-parse --abbrev-ref HEAD)"
-    printf '%s\n' "$base" > .git/peerreview-base
+    # A checkout that installed skills resolve into serves every session on this
+    # machine: switching it would have them all load the review branch, and the
+    # PEER's uncommitted edits, for the whole review (idd-skills 2026-09-11). The
+    # review branch gets a sibling worktree instead and the checkout stays put.
+    if link="$(installed_skill_link)"; then
+      top="$(git rev-parse --show-toplevel)"
+      wt="$top.worktrees/peerreview-$slug"
+      if [ ! -e "$wt" ]; then
+        git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null \
+          && git worktree add -q "$wt" "$branch" \
+          || git worktree add -q -b "$branch" "$wt" HEAD
+      fi
+      printf '%s\n' "$base" > "$(git -C "$wt" rev-parse --absolute-git-dir)/peerreview-base"
+      printf 'peerreview: %s serves installed skills (%s); it stays on %s\n' "$top" "$link" "$base"
+      printf 'peerreview: review branch %s in worktree %s — run the loop and land there\n' "$branch" "$wt"
+      exit 0
+    fi
+    printf '%s\n' "$base" > "$(git rev-parse --absolute-git-dir)/peerreview-base"
     git rev-parse --verify --quiet "$branch" >/dev/null \
       && git checkout -q "$branch" \
       || git checkout -q -b "$branch"
@@ -137,7 +172,7 @@ case "$cmd" in
   land)
     msgfile="${4:?message file}"
     subject_preflight "$msgfile"
-    base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
+    base="$(cat "$(git rev-parse --absolute-git-dir)/peerreview-base" 2>/dev/null || echo main)"
     # Pinned against user config: status.showUntrackedFiles=no would hide a
     # pending new file, and submodule.<name>.ignore a dirty submodule, from
     # both cleanliness checks.

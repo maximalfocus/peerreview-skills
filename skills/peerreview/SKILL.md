@@ -386,7 +386,10 @@ own all git operations for the entire loop. The PEER never commits or pushes.
 Unless the **Path-scoped git policy** or `--chat` applies, or durable intent names an OPEN PR whose
 head branch is already the review target, start the loop with `scripts/delivery-branch.sh start
 <repo> <slug>` and land it as a PR in Step 6 (standing user preference, asked on three consecutive
-runs 2026-08-18/19).
+runs 2026-08-18/19). Never switch a checkout that installed skills resolve into: `start` then opens
+the review branch in a sibling worktree it prints, and an OPEN PR's head branch goes into one too.
+Run the loop and land from there, so the install keeps serving its base (idd-skills 2026-09-11: an
+in-place review served its round edits to every session on the machine for the whole review).
 
 ## Step 4 — The convergence loop
 
