@@ -37,6 +37,9 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
 <!-- Deterministic commands the reviewer runs every round. Exit 0 = pass.
      Must be fail-closed and must NOT change host state or hit the network
      unless the repo's whole purpose is network I/O (then sandbox it).
+     Keep every gate runnable in the PEER's read-only verdict sandbox: no here-documents or
+     `<(...)`, since bash needs a temp file it cannot create there; save inline Python or awk as
+     a file and run it (`python3 check.py`).
      One more exception: a FIDELITY gate comparing the artifact against a live
      upstream source of truth. Keep it a SEPARATE target from the offline
      primary gate and run it HOST-side — the PEER's sandbox routinely has no
@@ -105,13 +108,12 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
 # V=@mermaid-js/mermaid-cli@11.15.0
 # npx --no-install -p "$V" mmdc -V >/dev/null 2>&1 || { echo "renderer absent — AC unverifiable"; exit 1; }
 # for s in src/*.mmd; do npx --no-install -p "$V" mmdc -i "$s" -o "/tmp/r/$(basename "$s" .mmd).png"; done
-# python3 - <<'EOF'
+# python3 check_render.py   # the lines below, saved as a file
 # from PIL import Image,ImageChops; import glob,os,sys
 # for c in glob.glob("png/*.png"):
 #   r="/tmp/r/"+os.path.basename(c)
 #   d=ImageChops.difference(Image.open(c).convert("RGB"),Image.open(r).convert("RGB"))
 #   if d.getbbox(): sys.exit(f"STALE committed artifact: {c}")
-# EOF
 ```
 
 ## Residuals & assumptions
