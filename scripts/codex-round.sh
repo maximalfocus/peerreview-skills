@@ -41,7 +41,10 @@ fi
 # cannot restrict an anchored session, so the read-only verdict runs in a fresh
 # `read-only` sandbox: the PEER can inspect the committed state but cannot edit.
 if [ "$round" = "--verdict" ]; then
-  exec_args=(exec -C "$repo_dir" -s read-only)
+  # Never record the verdict: as the newest session it would be what the next
+  # `resume --last` edit round picks, inheriting read-only and unable to edit
+  # (idd-skills 2026-09-11: every round after a verdict had to start --fresh).
+  exec_args=(exec -C "$repo_dir" -s read-only --ephemeral)
   [ "${#add_dir_args[@]}" -gt 0 ] && exec_args+=("${add_dir_args[@]}")
 elif [ "$round" = "1" ] || [ "$round" = "--fresh" ]; then
   exec_args=(exec -C "$repo_dir" -s workspace-write)
