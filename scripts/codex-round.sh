@@ -3,8 +3,12 @@
 # The tier-1 peer whenever the HOST is not itself the Codex CLI.
 # Usage: codex-round.sh <repo_dir> <prompt_file> <last_message_out> [round|--verdict]
 # PEERREVIEW_ADD_DIRS (or CODEX_ADD_DIRS) may contain newline-separated external
-# evidence directories (granted on the fresh round; the resumed session inherits
-# its permissions).
+# evidence directories. They are granted only to a fresh session (round 1, --fresh)
+# or a verdict: `codex exec resume` takes no --add-dir and does NOT carry them over
+# (codex-cli 0.152.1, 2026-09-21: a resumed round could not write the added repo and
+# left its edits in /tmp). A resumed round can still READ them (reads are not
+# sandboxed), so it runs, but warns: a peer that must EDIT an added directory
+# needs --fresh.
 set -euo pipefail
 
 repo_dir="${1:?repo_dir}"
@@ -50,6 +54,10 @@ elif [ "$round" = "1" ] || [ "$round" = "--fresh" ]; then
   exec_args=(exec -C "$repo_dir" -s workspace-write)
   [ "${#add_dir_args[@]}" -gt 0 ] && exec_args+=("${add_dir_args[@]}")
 else
+  if [ "${#add_dir_args[@]}" -gt 0 ]; then
+    printf '%s\n' 'peerreview: resumed Codex round: PEERREVIEW_ADD_DIRS stay readable but' \
+      '  NOT writable; use --fresh if the peer must edit them.' >&2
+  fi
   exec_args=(exec resume --last)
 fi
 # Publish the report only after the codex process exits. `-o` is written when a

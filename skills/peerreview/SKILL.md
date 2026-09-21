@@ -440,8 +440,10 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    restates no-commit/push. Pass `1` for a fresh first session and `2`+ to continue it. Reference
    the script by this absolute repo path—only `SKILL.md` is symlinked into the skill directory.
    `dsh-round.sh` has no session resume, so every `dsh` round is fresh: its prompt must stay
-   self-contained. If the driver is unreachable or returns a failed/empty result, apply
-   **Required-peer failure**; do not improvise an inline or different-CLI path.
+   self-contained. A resumed Codex round keeps `PEERREVIEW_ADD_DIRS` readable but not writable:
+   when the PEER must edit an added directory, pass `--fresh`. If the driver is unreachable or
+   returns a failed/empty result, apply **Required-peer failure**; do not improvise an inline or
+   different-CLI path.
 4. **Re-verify independently**: read the real `git diff HEAD` AND `git status` (for new untracked
    files the PEER created — `git diff HEAD` only shows tracked changes; a new `Dockerfile` or
    generated file is invisible to it) — do not trust the PEER's self-report. **Read the diff only
