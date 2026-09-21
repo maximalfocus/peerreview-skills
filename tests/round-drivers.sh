@@ -252,6 +252,17 @@ CODEX_ADD_DIRS="$tmp/scratch
 $tmp/scratch2" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1
 contains "$CODEX_FAKE_LOG" "--add-dir $tmp/scratch"
 contains "$CODEX_FAKE_LOG" "--add-dir $tmp/scratch2"
+# A resumed round cannot re-grant added directories: it still runs (they stay readable) but must
+# say they are not writable, so a HOST that needs the peer to edit them knows to pass --fresh.
+: > "$CODEX_FAKE_LOG"
+CODEX_ADD_DIRS="$tmp/scratch" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" \
+  "$tmp/codex.out" 2 2>"$tmp/codex.err"
+contains "$CODEX_FAKE_LOG" "resume"
+contains "$tmp/codex.err" "NOT writable"
+: > "$CODEX_FAKE_LOG"
+CODEX_ADD_DIRS="$tmp/scratch" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" \
+  "$tmp/codex.out" --fresh
+contains "$CODEX_FAKE_LOG" "--add-dir $tmp/scratch"
 if CODEX_ADD_DIRS="$tmp/does-not-exist" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "missing CODEX_ADD_DIRS path was accepted"; fi
 
 if CODEX_FAKE_AUTH=none "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "unauthenticated Codex was accepted"; fi
