@@ -468,7 +468,8 @@ grep -qx "$want_pr" "$GH_FAKE_LOG" \
   || fail "worktree land did not target its recorded base: $(cat "$GH_FAKE_LOG")"
 [ "$(git -C "$wt" rev-list --count topic..evolve/wtslug)" = 1 ] \
   || fail "worktree delivery is not one commit on topic"
-main_base="$(git -C "$repo" rev-parse --path-format=absolute --git-path peerreview-base)"
+main_base="$(git -C "$repo" rev-parse --git-path peerreview-base)"
+[ "${main_base#/}" != "$main_base" ] || main_base="$repo/$main_base"
 [ "$(cat "$main_base")" = main ] \
   || fail "worktree start overwrote the main checkout's recorded base"
 git -C "$repo" worktree remove --force "$wt"
