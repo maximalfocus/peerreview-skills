@@ -445,4 +445,33 @@ rm "$origin/hooks/pre-receive"
 accepts "retry after push rejection" "feat: land the review"
 [ "$(git -C "$repo" rev-parse evolve/slug)" = "$landed" ] || fail "push retry re-squashed"
 
+# A linked worktree has a .git FILE, so the recorded base must live in the
+# per-worktree git dir. Each checkout keeps its own base: a worktree started
+# from topic lands its PR against topic while the main checkout still records
+# main, and neither run falls back to the default.
+fresh "$vocab"
+printf 'feat: land the review\n' > "$msg"
+wt="$tmp/wt"; rm -rf "$wt"
+git -C "$repo" branch -q topic main
+git -C "$repo" worktree add -q "$wt" topic
+printf 'topic\n' >> "$wt/file.txt"; git -C "$wt" commit -qam topic
+git -C "$wt" push -q origin topic
+bash "$script" start "$wt" wtslug >/dev/null || fail "start refused a linked worktree"
+[ "$(git -C "$wt" rev-parse --abbrev-ref HEAD)" = peerreview/wtslug ] \
+  || fail "worktree start did not check out the review branch"
+printf 'wt round\n' >> "$wt/file.txt"; git -C "$wt" commit -qam 'peerreview: round 1'
+: > "$GH_FAKE_LOG"
+bash "$script" land "$wt" wtslug "$msg" >/dev/null || fail "land refused a linked worktree"
+want_pr="pr create --repo $origin --base topic --head evolve/wtslug"
+want_pr="$want_pr --title feat: land the review --body-file .*"
+grep -qx "$want_pr" "$GH_FAKE_LOG" \
+  || fail "worktree land did not target its recorded base: $(cat "$GH_FAKE_LOG")"
+[ "$(git -C "$wt" rev-list --count topic..evolve/wtslug)" = 1 ] \
+  || fail "worktree delivery is not one commit on topic"
+main_base="$(git -C "$repo" rev-parse --git-path peerreview-base)"
+[ "${main_base#/}" != "$main_base" ] || main_base="$repo/$main_base"
+[ "$(cat "$main_base")" = main ] \
+  || fail "worktree start overwrote the main checkout's recorded base"
+git -C "$repo" worktree remove --force "$wt"
+
 echo "delivery-branch.sh land preflight and PR delivery valid"

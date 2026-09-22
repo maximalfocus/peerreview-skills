@@ -124,11 +124,14 @@ cmd="${1:?start|land}"; repo="${2:?repo}"; slug="${3:?slug}"
 cd "$repo"
 branch="peerreview/$slug"
 delivery="evolve/$slug"
+# Per-checkout state lives in the git dir git itself reports: in a linked
+# worktree .git is a file, and each worktree records its own base.
+base_file="$(git rev-parse --git-path peerreview-base)"
 
 case "$cmd" in
   start)
     base="$(git rev-parse --abbrev-ref HEAD)"
-    printf '%s\n' "$base" > .git/peerreview-base
+    printf '%s\n' "$base" > "$base_file"
     git rev-parse --verify --quiet "$branch" >/dev/null \
       && git checkout -q "$branch" \
       || git checkout -q -b "$branch"
@@ -137,7 +140,7 @@ case "$cmd" in
   land)
     msgfile="${4:?message file}"
     subject_preflight "$msgfile"
-    base="$(cat .git/peerreview-base 2>/dev/null || echo main)"
+    base="$(cat "$base_file" 2>/dev/null || echo main)"
     # Pinned against user config: status.showUntrackedFiles=no would hide a
     # pending new file, and submodule.<name>.ignore a dirty submodule, from
     # both cleanliness checks.
