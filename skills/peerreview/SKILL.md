@@ -271,7 +271,16 @@ radius), produce:
 - **Focus areas**, ranked by risk (correctness > security > robustness > docs).
 - **Per-AC review strategy** — how each acceptance criterion will be checked.
 - **Verification gate** — the exact commands from the charter's Verification block you will run
-  every round, plus any obvious missing tests, linters, or validators. **Compiled-language repos
+  every round, plus any obvious missing tests, linters, or validators. **The gate is read-only
+  with respect to the reviewed sources:** a check needing a mutated state builds it in a throwaway
+  copy, never by editing a reviewed file and restoring it — a denied restore (the PEER's sandbox
+  refuses `git checkout`) leaves the gate reporting PASS on a tree it dirtied, and a successful one
+  wipes the round's uncommitted fixes with it. End the gate asserting `git status --porcelain --
+  <reviewed paths>` matches what it captured at gate start — not "clean": the loop's own edits are
+  legitimately pending, and the repo's build outputs sit outside that list. That last check makes
+  read-only verifiable instead of promised. (knowledge-skills 2026-09-23 R8: appending to a tool to
+  prove its dirty-tree refusal passed dirty, broke the next check, and reverted an earlier fix.)
+  **Compiled-language repos
   with build artifacts (`build/`, `target/`, `obj/`) require a hermetic clean build; verify `clean`
   removes every generated source, object, and binary.** In-place gates can pass on stale/foreign
   objects (macOS arm64 artifacts later failed in Linux, including a whole reused binary; `make clean
