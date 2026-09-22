@@ -42,7 +42,30 @@ if bash "$script" check "$tmp/a.md" >/dev/null; then echo "check must fail on lo
 if out="$(bash "$script" fix "$tmp/a.md")"; then echo "fix must exit 1 while hand-work remains" >&2; exit 1; fi
 # prose and list items are wrapped, every word kept
 awk 'NR>1 && /^---$/{fm=0; next} NR==1{fm=1; next} /^[[:space:]]*```/{code=!code; next} !fm && !code && !/^\|/ && !/^#/ && !/^>/ && length>100 {print "still long: " $0; bad=1} END{exit bad}' "$tmp/a.md"
-[ "$(sed '1,/^---$/d' "$tmp/orig.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" = "$(sed '1,/^---$/d' "$tmp/a.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" ] || { echo "rewrap changed the words" >&2; exit 1; }
+# body words only (front matter is folded on purpose). Compare the words, not
+# an md5 (macOS-only), and require some: a second front-matter strip once
+# emptied both sides, so the check passed vacuously on every platform.
+words() {
+  awk '{
+    sub(/\r$/, "")
+    if (NR == 1 && $0 == "---") { front_matter = 1; next }
+    if (front_matter) { if ($0 == "---") front_matter = 0; next }
+    for (i = 1; i <= NF; i++) print $i
+  }' "$1" | LC_ALL=C sort
+}
+same_words() { [ "$(words "$1")" = "$(words "$2")" ]; }
+[ -n "$(words "$tmp/orig.md")" ] || { echo "word extraction found no words" >&2; exit 1; }
+same_words "$tmp/orig.md" "$tmp/a.md" || { echo "rewrap changed the words" >&2; exit 1; }
+# Prove whitespace portability and that drop, add, and alteration mutations are rejected.
+printf '%b' '---\r\nname: demo\r\n---\r\nalpha\tbeta gamma\r\n' > "$tmp/words-source.md"
+printf '%b' 'gamma alpha beta\n' > "$tmp/words-same.md"
+same_words "$tmp/words-source.md" "$tmp/words-same.md" \
+  || { echo "word extraction mishandled whitespace or optional front matter" >&2; exit 1; }
+for mutation in 'alpha beta' 'alpha beta gamma delta' 'alpha beta changed'; do
+  printf '%s\n' "$mutation" > "$tmp/words-mutated.md"
+  ! same_words "$tmp/words-source.md" "$tmp/words-mutated.md" \
+    || { echo "word mutation was not detected: $mutation" >&2; exit 1; }
+done
 grep -q '^description: >-$' "$tmp/a.md" || { echo "long description must be folded" >&2; exit 1; }
 grep -q '^argument-hint: "\[x\]"$' "$tmp/a.md" || { echo "short front matter keys must be untouched" >&2; exit 1; }
 # heading, table row, and code line are reported, not rewritten
