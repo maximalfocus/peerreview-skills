@@ -182,7 +182,13 @@ instruction, and still confirm for destructive git ops. Concurrency (siblings/en
    commits those paths on `evolve/<slug>` (N-3), pushes it, opens the PR with the N-4 subject
    (`<type>(<scope>)?: <lowercase imperative>`, ≤72 chars) as title and the evidence body as
    description, and returns the checkout to `main`. Never force-push; if it refuses, fix the
-   precondition it names and rerun — never work around it with raw pushes.
+   precondition it names and rerun — never work around it with raw pushes. One exception, and only
+   this one: an **open PR's own branch may be rebased onto `main`** when a conflict makes it
+   unmergeable, and that rebase is force-pushed to that branch. `main` is never force-pushed, the
+   rebase changes nothing but the conflict resolution, the gate is re-run afterwards on the
+   rebased head, and the landing report states how each conflict was resolved — a rebase of
+   someone else's PR is a change to their work, so it is disclosed, not assumed (peerreview-skills
+   PR #13, 2026-09-23: rebased onto a landed fix that had rewritten the same line).
 5. Verify the size gate; stop and report the PR URL. Landing happens only through `bash
    ~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the maintainer's explicit instruction
    after review (by hand or `/peerreview`): squash merge as `<title> (#PR)`, `main` fast-forwarded,
