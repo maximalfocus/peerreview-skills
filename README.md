@@ -113,7 +113,7 @@ Two conventions in the skill files come from the author's setup. Neither is requ
   directory, edit the *Path-scoped git policy* section of `skills/peerreview/SKILL.md`.
 - **Sibling checkouts under `~/personal/`.** The `cdd-*` profiles render a progress map from
   `~/personal/cdd-skills`, the `knowledge-artifacts` profile reads the format contract from
-  `~/personal/knowledge-skills` when available, and the `cdd-prd` profile looks for a reviewed
+  `~/personal/brief-skills` when available, and the `cdd-prd` profile looks for a reviewed
   project's siblings as `~/personal/{project}-*`. These are the author's sibling checkouts; without
   them those profile-specific steps are unavailable and a review of such a repository must say so in
   its report. All other profiles are unaffected.

@@ -10,7 +10,7 @@ is a violation of Article 1.
 
 **Articles 1–5 are the shared, family-agnostic law of the `*-skills` evolve methodology** —
 reproduced **byte-identical** in every family's own `CONSTITUTION.md` (`cdd-skills`,
-`system-skills`, `tutorial-skills`, `knowledge-skills`, `note-skills`, `present-skills`,
+`system-skills`, `tutorial-skills`, `brief-skills`, `note-skills`, `present-skills`,
 `peerreview-skills`, `video-skills`, `releasereview-skills`);
 `cdd-skills/tools/constitution-sync.sh` enforces that they do not drift (cdd-skills is the
 reference). Articles 6–9 are specific to peerreview-skills. The `/peerreview-evolve` skill reads
