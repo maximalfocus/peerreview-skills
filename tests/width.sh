@@ -42,7 +42,13 @@ if bash "$script" check "$tmp/a.md" >/dev/null; then echo "check must fail on lo
 if out="$(bash "$script" fix "$tmp/a.md")"; then echo "fix must exit 1 while hand-work remains" >&2; exit 1; fi
 # prose and list items are wrapped, every word kept
 awk 'NR>1 && /^---$/{fm=0; next} NR==1{fm=1; next} /^[[:space:]]*```/{code=!code; next} !fm && !code && !/^\|/ && !/^#/ && !/^>/ && length>100 {print "still long: " $0; bad=1} END{exit bad}' "$tmp/a.md"
-[ "$(sed '1,/^---$/d' "$tmp/orig.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" = "$(sed '1,/^---$/d' "$tmp/a.md" | sed '1,/^---$/d' | tr -s ' \n' '\n' | sort | md5)" ] || { echo "rewrap changed the words" >&2; exit 1; }
+# body words only (front matter is folded on purpose). Compare the words, not
+# an md5 (macOS-only), and require some: a second front-matter strip once
+# emptied both sides, so the check passed vacuously on every platform.
+words() { sed '1,/^---$/d' "$1" | tr -s ' \n' '\n' | sort; }
+[ -n "$(words "$tmp/orig.md")" ] || { echo "word extraction found no words" >&2; exit 1; }
+[ "$(words "$tmp/orig.md")" = "$(words "$tmp/a.md")" ] \
+  || { echo "rewrap changed the words" >&2; exit 1; }
 grep -q '^description: >-$' "$tmp/a.md" || { echo "long description must be folded" >&2; exit 1; }
 grep -q '^argument-hint: "\[x\]"$' "$tmp/a.md" || { echo "short front matter keys must be untouched" >&2; exit 1; }
 # heading, table row, and code line are reported, not rewritten
