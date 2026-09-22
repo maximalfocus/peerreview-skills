@@ -278,17 +278,16 @@ radius), produce:
   wipes the round's uncommitted fixes with it. End the gate asserting `git status --porcelain --
   <reviewed paths>` matches what it captured at gate start — not "clean": the loop's own edits are
   legitimately pending, and the repo's build outputs sit outside that list. That last check makes
-  read-only verifiable instead of promised. (knowledge-skills 2026-09-23 R8: appending to a tool to
+  read-only verifiable instead of promised. (brief-skills 2026-09-23 R8: appending to a tool to
   prove its dirty-tree refusal passed dirty, broke the next check, and reverted an earlier fix.)
-  **Compiled-language repos
-  with build artifacts (`build/`, `target/`, `obj/`) require a hermetic clean build; verify `clean`
-  removes every generated source, object, and binary.** In-place gates can pass on stale/foreign
-  objects (macOS arm64 artifacts later failed in Linux, including a whole reused binary; `make clean
-  test` fixed it, once `clean` also removed `bminor`/`scanner.c`). **Process-level performance gates
-  need their own deadline:** checking elapsed only after child exit hangs on regressions. Set the
-  subprocess timeout to the budget, map timeout to budget failure, then validate
-  exit/output/cardinality before accepting elapsed success; mutation-test timeout, non-zero,
-  malformed output, and non-finite budgets. (ArchSift NFR-005, 2026-08-07.) **For
+  **Compiled-language repos with build artifacts (`build/`, `target/`, `obj/`) require a hermetic
+  clean build; verify `clean` removes every generated source, object, and binary.** In-place gates
+  can pass on stale/foreign objects (macOS arm64 artifacts later failed in Linux, including a whole
+  reused binary; `make clean test` fixed it, once `clean` also removed `bminor`/`scanner.c`).
+  **Process-level performance gates need their own deadline:** checking elapsed only after child
+  exit hangs on regressions. Set the subprocess timeout to the budget, map timeout to budget
+  failure, then validate exit/output/cardinality before accepting elapsed success; mutation-test
+  timeout, non-zero, malformed output, and non-finite budgets. (ArchSift NFR-005, 2026-08-07.) **For
   multi-process/container smoke gates, a producer artifact or running status proves only producer
   readiness:** wait for the consumer's post-init control state, then repeat cold starts to expose
   races. (agent-sandbox PR #51: the shared CA predated agent `OUTPUT DROP`, causing 2/3 false
