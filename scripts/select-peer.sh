@@ -4,7 +4,7 @@
 #
 # Tier 1 peers: Claude Code (anthropic) and the Codex CLI (openai).
 # Tier 2, only when no tier-1 peer is reachable: the DeepSeek Harness `dsh`
-# (deepseek-v4-pro) for CDD-harnessed repos, otherwise Pi (deepseek-v4-flash).
+# (deepseek-v4-pro) for CDD-harnessed repos, otherwise Pi (deepseek-flash, V4.1).
 #
 # Invariant: PEER vendor != HOST vendor. A same-vendor pass is not a peer
 # review — this methodology's own evidence is that degraded same-vendor passes

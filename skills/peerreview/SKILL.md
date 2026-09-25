@@ -47,7 +47,7 @@ CLI **and** auth — so it is also the peer preflight Step 0 needs:
 | 1 | Claude Code, Claude subscription | HOST is not Claude Code |
 | 1 | Codex CLI, OpenAI ChatGPT subscription | HOST is not the Codex CLI |
 | 2 | DeepSeek Harness `dsh` (deepseek-v4-pro) | no tier-1 peer **and** a `cdd-*` profile |
-| 2 | Pi, `deepseek` API-key provider (deepseek-v4-flash) | no tier-1 peer, every other repo |
+| 2 | Pi, `deepseek` API-key provider (deepseek-flash, V4.1) | no tier-1 peer, every other repo |
 
 **The PEER vendor is never the HOST vendor.** A same-vendor pass is not a peer review — this
 methodology's own evidence is that degraded same-vendor passes miss whole defect families — so a

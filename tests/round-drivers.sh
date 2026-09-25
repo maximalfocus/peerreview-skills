@@ -166,6 +166,7 @@ PI_FAKE_GIT_SCRATCH="$tmp/scratch" "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp
 contains "$tmp/pi.out" PI_OK
 [ -d "$tmp/scratch/.git" ] || fail "Pi guard blocked a temporary fixture repo"
 contains "$PI_FAKE_LOG" "--provider deepseek"
+contains "$PI_FAKE_LOG" "--model deepseek-flash "
 contains "$PI_FAKE_LOG" "--tools read,write,edit,bash,grep,find,ls"
 not_contains "$PI_FAKE_LOG" " -c "
 
