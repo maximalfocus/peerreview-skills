@@ -30,7 +30,9 @@ mkdir -p "$session_dir"
 
 # Pin the tier-2 Pi model explicitly so the peer tier is true by construction
 # rather than inherited from whatever the provider default happens to be.
-args=(-p --provider deepseek --model "${PEERREVIEW_PI_MODEL:-deepseek-v4-flash}"
+# `deepseek-flash` is DeepSeek's API id for DeepSeek-V4.1-Flash; the older id
+# `deepseek-v4-flash` is a retired alias (api-docs.deepseek.com, 2026-09).
+args=(-p --provider deepseek --model "${PEERREVIEW_PI_MODEL:-deepseek-flash}"
   --session-dir "$session_dir" --no-extensions --no-skills --no-prompt-templates)
 if [ "$round" = "--verdict" ]; then
   args+=(-c --tools read,grep,find,ls --append-system-prompt "Read-only verdict: do not edit files or run commands.")

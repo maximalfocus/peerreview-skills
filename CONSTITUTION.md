@@ -148,7 +148,7 @@ review state, never a duplicate contract added to the reviewed repo; a pre-exist
   prose: tier 1 is Claude Code on a Claude subscription ↔ the Codex CLI on an OpenAI ChatGPT
   subscription; tier 2 is reached only when no tier-1 peer is authenticated and reachable, and is
   the DeepSeek Harness (`dsh`, deepseek-v4-pro) for CDD-harnessed repos and Pi on a DeepSeek API-key
-  provider (deepseek-v4-flash) for every other repo. **The PEER vendor is never the HOST vendor** —
+  provider (deepseek-flash) for every other repo. **The PEER vendor is never the HOST vendor** —
   a same-vendor pass is a degraded review, not a peer review — so a DeepSeek HOST has no tier-2
   fallback, and no cross-vendor peer reachable fails closed with no same-HOST substitute. Tier 2 is
   a disclosed degradation: the terminal report names the tier that ran and why tier 1 was
