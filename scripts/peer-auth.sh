@@ -1,9 +1,34 @@
 #!/usr/bin/env bash
 # Verify one /peerreview peer side is reachable, without printing credentials.
-# Usage: peer-auth.sh <claude|codex|pi|dsh>
+# Usage: peer-auth.sh <claude|codex|pi|dsh> [--probe-quota]
 set -euo pipefail
 
 side="${1:?side (claude|codex|pi|dsh)}"
+probe_quota="${2:-}"
+
+# Subscription peers can be signed in yet out of quota. Send one tiny prompt and treat a
+# usage-limit reply as unreachable, so select-peer.sh falls through to the next tier. Any other
+# probe failure (timeout, network) is not evidence of exhaustion and leaves the peer ready.
+# Only peer selection asks for it (--probe-quota); round drivers re-check auth without spending a
+# request. PEERREVIEW_QUOTA_PROBE=0 skips the probe.
+quota_blocked() {
+  [ "$probe_quota" = --probe-quota ] && [ "${PEERREVIEW_QUOTA_PROBE:-1}" != 0 ] || return 1
+  local out
+  out="$(python3 - "$@" <<'PY' 2>&1
+import subprocess, sys
+try:
+    limit = int(__import__("os").environ.get("PEERREVIEW_QUOTA_TIMEOUT", "90"))
+    r = subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                       timeout=limit)
+    print(r.stdout[-2000:] + r.stderr[-2000:])
+except (subprocess.TimeoutExpired, OSError):
+    pass
+PY
+)"
+  local pattern="usage limit|session limit|hit your .*limit|quota exceeded"
+  printf '%s' "$out" | grep -iqE "$pattern" || return 1
+  printf '%s' "$out" | grep -iE "$pattern" | head -n 1 | cut -c1-200
+}
 
 case "$side" in
   claude)
@@ -27,6 +52,10 @@ PY
       printf 'peerreview: Claude Code is not authenticated with a Claude subscription (run `claude auth login`; raw API-key auth is not this contract).\n' >&2
       exit 69
     }
+    if limit="$(quota_blocked claude -p 'Reply with exactly: ok')"; then
+      printf 'peerreview: Claude Code subscription is out of quota: %s\n' "$limit" >&2
+      exit 69
+    fi
     printf 'READY claude subscription\n'
     ;;
 
@@ -67,6 +96,11 @@ PY
     }
     case "$status" in
       *"Logged in using ChatGPT"*)
+        if limit="$(quota_blocked codex exec --skip-git-repo-check -s read-only \
+            'Reply with exactly: ok')"; then
+          printf 'peerreview: Codex CLI subscription is out of quota: %s\n' "$limit" >&2
+          exit 69
+        fi
         printf 'READY codex chatgpt-subscription\n'
         exit 0
         ;;

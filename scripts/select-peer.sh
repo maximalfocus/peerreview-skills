@@ -100,7 +100,7 @@ for cand in $ladder; do
     tried="$tried $cand(same-vendor)"
     continue
   fi
-  if reason="$("$script_dir/peer-auth.sh" "$cand" 2>&1 >/dev/null)"; then
+  if reason="$("$script_dir/peer-auth.sh" "$cand" --probe-quota 2>&1 >/dev/null)"; then
     [ -n "$tried" ] && printf 'peerreview: tier-1 peer unavailable (%s); using %s.\n' "${tried# }" "$cand" >&2
     printf 'HOST=%s HOST_VENDOR=%s PEER=%s PEER_VENDOR=%s DRIVER=%s AUTH_SIDE=%s TIER=%s\n' \
       "$host" "$host_vendor" "$cand" "$cand_vendor" "$(driver_of "$cand")" "$cand" "$(tier_of "$cand")"

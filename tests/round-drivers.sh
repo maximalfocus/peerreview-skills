@@ -69,6 +69,9 @@ if [ "${1:-}" = auth ] && [ "${2:-}" = status ]; then
   esac
   exit 0
 fi
+if [ "${CLAUDE_FAKE_QUOTA:-0}" = 1 ] && [ "${1:-}" = -p ]; then
+  printf "You've hit your session limit · resets 1:40pm\n"; exit 1
+fi
 printf '%s\n' "$*" >> "${CLAUDE_FAKE_LOG:?}"
 cat > "${CLAUDE_FAKE_STDIN:-/dev/null}"
 [ "${CLAUDE_FAKE_RC:-0}" = 0 ] || exit "$CLAUDE_FAKE_RC"
@@ -84,6 +87,9 @@ if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
     *) exit 1 ;;
   esac
   exit 0
+fi
+if [ "${CODEX_FAKE_QUOTA:-0}" = 1 ] && [ "${1:-}" = exec ]; then
+  printf 'ERROR: You have hit your usage limit. Try again at Oct 2nd.\n' >&2; exit 1
 fi
 printf '%s\n' "$*" >> "${CODEX_FAKE_LOG:?}"
 # The prompt arrives on stdin; keep its first line for verdict assertions.
@@ -158,6 +164,19 @@ if (unset PI_CODING_AGENT AI_AGENT PI_PROVIDER CODEX_CI CODEX_THREAD_ID CLAUDECO
 # A Claude Code HOST must never be paired with a Claude peer.
 selection="$(CLAUDECODE=1 "$root/scripts/select-peer.sh")"
 [ "$selection" = "HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1" ] || fail "Claude HOST selection: $selection"
+# Signed in but out of quota counts as unreachable: fall through to tier 2.
+want_pi="PEER=pi PEER_VENDOR=deepseek DRIVER=pi-round.sh AUTH_SIDE=pi TIER=2"
+selection="$(CODEX_FAKE_QUOTA=1 CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "HOST=claude HOST_VENDOR=anthropic $want_pi" ] \
+  || fail "quota-blocked Codex not skipped: $selection"
+selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER
+  CLAUDE_FAKE_QUOTA=1 CODEX_CI=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "HOST=codex HOST_VENDOR=openai $want_pi" ] \
+  || fail "quota-blocked Claude not skipped: $selection"
+PEERREVIEW_QUOTA_PROBE=0 CODEX_FAKE_QUOTA=1 "$root/scripts/peer-auth.sh" codex --probe-quota \
+  >/dev/null || fail "PEERREVIEW_QUOTA_PROBE=0 did not skip the probe"
+CODEX_FAKE_QUOTA=1 "$root/scripts/peer-auth.sh" codex >/dev/null \
+  || fail "a round's auth re-check spent a quota probe"
 
 # Codex HOST -> Pi/DeepSeek PEER: fresh, continuation, verdict, auth, output, git guard.
 export PI_FAKE_LOG="$tmp/pi.log"
