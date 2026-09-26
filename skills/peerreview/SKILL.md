@@ -40,7 +40,8 @@ convergence; the PEER only co-edits. Resolve both mechanically with
 `~/personal/peerreview-skills/scripts/select-peer.sh <repo_path>` and use its exact
 `HOST/PEER/DRIVER/AUTH_SIDE/TIER` result. It detects the HOST from process markers (Claude Code,
 Codex CLI, Pi, DeepSeek Harness), walks the ladder below in order, and preflights each candidate's
-CLI **and** auth — so it is also the peer preflight Step 0 needs:
+CLI **and** auth — and, for the subscription peers, quota: one tiny prompt whose usage-limit reply
+counts as unreachable — so it is also the peer preflight Step 0 needs:
 
 | Tier | PEER | Selected when |
 |---|---|---|
@@ -79,10 +80,15 @@ review is never a substitute.
    --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile), and it
    exits 69 only when no cross-vendor peer survives. Raw-API-key auth on a subscription side is not
    this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
-   and why, in the report. Usage limits or a failed/empty round mid-run are terminal blockers:
-   disclose the exact failure, clean `ACTIVE_CHARTER` if created, and stop; never re-ladder to a
-   different peer mid-run, which would discard the anchored session and the round history. A
-   transient network failure may be re-probed once and retried fresh only after resolution is green.
+   and why, in the report. **A usage limit mid-run re-ladders, automatically:** re-run
+   `select-peer.sh` (its quota probe now skips the exhausted peer) and continue with the peer it
+   resolves in a fresh session whose first round carries the committed state, the charter and the
+   open findings; the floor of one completed round applies to the new peer, and the report names
+   both peers, the switch and the tier that converged (user directive 2026-09-26: never stop on a
+   quota wall while another cross-vendor peer is reachable). A failed/empty round for any other
+   reason stays terminal: disclose the exact failure, clean `ACTIVE_CHARTER` if created, and stop.
+   A transient network failure may be re-probed once and retried fresh only after resolution is
+   green.
 3. Working tree + delivery branch: note uncommitted changes. When durable intent names a GitHub
    issue/PR, read its live state before any commit: review an OPEN PR on its head branch; a MERGED
    PR/CLOSED issue needs a follow-up branch (or a stop), never review commits on the default branch
@@ -137,11 +143,12 @@ already-fixed fork, reporting the defect absent.)
 
 ## Required-peer failure (fail closed)
 
-A cross-vendor PEER from the Step 0.0 ladder is mandatory. If `select-peer.sh` resolves none, or the
-resolved PEER is quota-blocked or returns no non-empty report/verdict, state the blocker and stop
-after charter cleanup. Never label a HOST-only pass converged, never fall back to a same-vendor
-peer, and never push review edits made without the mandatory PEER round. Resume by re-running
-`/peerreview` after the named blocker is resolved.
+A cross-vendor PEER from the Step 0.0 ladder is mandatory. If `select-peer.sh` resolves none —
+including after a mid-run quota re-ladder — or the resolved PEER returns no non-empty report/verdict
+for a reason other than its usage limit, state the blocker and stop after charter cleanup. Never
+label a HOST-only pass converged, never fall back to a same-vendor peer, and never push review
+edits made without the mandatory PEER round. Resume by re-running `/peerreview` after the named
+blocker is resolved.
 
 ## Path-scoped git policy (repos under `~/projects`)
 
@@ -739,8 +746,8 @@ history of the skills is the record; never re-create a patterns/index log.
 - The HOST owns git. The PEER co-editor never commits, pushes, or touches remotes.
 - The PEER is whatever `select-peer.sh` resolves: tier-1 Claude Code ↔ Codex CLI, falling to tier-2
   `dsh` (CDD-harnessed repos) or Pi (all others) only when no tier-1 peer is reachable, and never to
-  the HOST's own vendor. Any missing/auth/quota blocker fails closed; no same-HOST substitute (Step
-  0.0).
+  the HOST's own vendor. A quota wall re-ladders to the next reachable cross-vendor peer (Step
+  0.0); any missing/auth blocker, or no peer left, fails closed; no same-HOST substitute.
 - Every round: review the real diff + re-run the gate. Never trust self-reports — including
   fact-checking any identifier/API the PEER claims it "corrected".
 - **Any live finding you DISMISS must be verified against the cited line — the PEER's, *and one you
@@ -756,8 +763,8 @@ history of the skills is the record; never re-create a patterns/index log.
   invitation to disagree is not an agenda handoff (ArchSift 2026-08-15: a self-dismissed redaction
   gap, surfaced as an open question, returned NOT CONVERGED and landed NFR-009).
 - Fail loud and closed: auto-create a fresh active charter; absent or conflicting durable intent →
-  stop, never infer it from implementation. Missing peer/auth, quota, or empty output → disclose the
-  blocker and stop after charter cleanup.
+  stop, never infer it from implementation. Quota → re-ladder (Step 0.0); missing peer/auth, no
+  peer left, or empty output → disclose the blocker and stop after charter cleanup.
 - Rounds are forecast for transparency; **convergence**, not a count, ends it — but with a hard
   **floor of 1** peer round (Step 4 mandatory round; never converge at round 0).
 - "Ready" = charter satisfied + gates green + no substantive findings. Not "perfect".

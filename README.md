@@ -23,10 +23,12 @@ disclosed degradation reached only when no tier-1 peer is reachable.
   `dsh-round.sh`) → HOST re-verifies the real diff and re-runs the gate → commit the round. Each
   side has its own auth contract: a Claude subscription, an OpenAI ChatGPT subscription (`codex
   login`), Pi on the `deepseek` API-key provider, `DEEPSEEK_API_KEY` for `dsh`.
-- **Fail closed.** If no cross-vendor peer is reachable, or the resolved one is unauthenticated,
-  quota-blocked, or returns no report, the review stops. **The PEER vendor is never the HOST
-  vendor** — a same-vendor pass is a degraded review, not a peer review — so there is no same-vendor
-  substitute and a DeepSeek HOST has no tier-2 fallback.
+- **Quota walls re-ladder, everything else fails closed.** Peer selection probes the subscription
+  peers' quota, so an exhausted Codex or Claude falls through to the next cross-vendor tier, and a
+  usage limit mid-run switches to that peer automatically. If no cross-vendor peer is reachable, or
+  the resolved one is unauthenticated or returns no report, the review stops. **The PEER vendor is
+  never the HOST vendor** — a same-vendor pass is a degraded review, not a peer review — so there is
+  no same-vendor substitute and a DeepSeek HOST has no tier-2 fallback.
 - **Convergence, not a round cap, is the stop condition.** Successful reviews create annotated
   `peerreview/converged/*` tag checkpoints. Later reviews use anchor→HEAD plus impact closure unless
   risk requires a full-tree pass.
