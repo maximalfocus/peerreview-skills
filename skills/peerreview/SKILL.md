@@ -597,7 +597,11 @@ must have run and been independently re-verified):
   sweeping each lens systematically. For non-trivial codebases the deeper sweep typically includes:
   enumerate every placeholder / wildcard zone (not just the first one that paid off); `go test -race
   -shuffle=on -count=N` (or stack-equivalent) for flake / order dependence; *execute* residual ACs
-  (e.g. container builds) instead of only reading their contract; scan for structurally-duplicate
+  (e.g. container builds) instead of only reading their contract — a tool that talks to a live
+  system runs its read-only/dry-run path against that system, since a stub written from the same
+  belief as the code agrees with it (one-brim-autotest 2026-09-27: a CONVERGED deploy tool refused
+  on the real server, which sends no `sap-user` header its stub did; unreachable → Step 4's
+  un-runnable gate rule); scan for structurally-duplicate
   codepaths one tested at the function boundary while the other actually runs in production; probe
   undocumented env-var / global coupling. Cosmetic-only nits do not block.
 - The working tree is clean and every change is committed. *(Path-scoped git policy: instead — all
@@ -744,6 +748,11 @@ history of the skills is the record; never re-create a patterns/index log.
 ## Hard rules
 
 - The HOST owns git. The PEER co-editor never commits, pushes, or touches remotes.
+- **Run the skill, not its scripts.** Every review — a re-run or a later review in the same session
+  included — invokes `/peerreview` and follows Steps 0–6; bare `select-peer.sh`/`*-round.sh` calls
+  skip Step 1.5's lenses and Step 2's plan. Every edit round is the PEER's: no HOST subagent or fork
+  writes a fix round in its place. (one-brim-autotest 2026-09-27: a deploy tool reviewed by bare
+  scripts, fixes written by a fork, drew one finding per verdict for 9 rounds until the skill ran.)
 - The PEER is whatever `select-peer.sh` resolves: tier-1 Claude Code ↔ Codex CLI, falling to tier-2
   `dsh` (CDD-harnessed repos) or Pi (all others) only when no tier-1 peer is reachable, and never to
   the HOST's own vendor. A quota wall re-ladders to the next reachable cross-vendor peer (Step
