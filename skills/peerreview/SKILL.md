@@ -449,10 +449,10 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
 
 1. **Review** against the charter in the selected mode: whole tree, or the anchor→HEAD delta plus
    impact closure. Walk affected ACs, hunt correctness and security first, and run the full gate.
-   From round 2, first sweep each defect class found so far across the whole range (every wording
-   and sibling, not the cited line) and run the artifact's live path (publish, render, phone check):
-   a round that re-finds a sibling is a HOST miss (one-brim-autotest PR #226 2026-10-03: role
-   wording and privacy-scan false positives surfaced one per round over 9+ rounds).
+   Each round, first sweep every defect class found so far across the whole range (every wording and
+   sibling, not the cited line) and run the artifact's live path (publish, render, phone check): a
+   round that re-finds a sibling is a HOST miss (one-brim-autotest PR #226 2026-10-03: unresolved
+   references and fingerprint gaps recurred one sibling per round until round 13).
 2. **Write findings** to a temp prompt file: include the complete current `ACTIVE_CHARTER`, then
    concrete file-specific findings ranked and tied to an AC or defect class. Restate: minimal edits,
    no commit/push, run and report the gate. The PEER may challenge traceability; the HOST revises
