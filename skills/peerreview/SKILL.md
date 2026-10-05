@@ -39,9 +39,10 @@ The HOST running this skill reviews/orchestrates and owns git, verification, fac
 convergence; the PEER only co-edits. Resolve both mechanically with
 `~/personal/peerreview-skills/scripts/select-peer.sh <repo_path>` and use its exact
 `HOST/PEER/DRIVER/AUTH_SIDE/TIER` result. It detects the HOST from process markers (Claude Code,
-Codex CLI, Pi, DeepSeek Harness), walks the ladder below in order, and preflights each candidate's
-CLI **and** auth — and, for the subscription peers, quota: one tiny prompt whose usage-limit reply
-counts as unreachable — so it is also the peer preflight Step 0 needs:
+Codex CLI, Pi, DeepSeek Harness) and from the model or endpoint behind them, walks the ladder below
+in order, and preflights each candidate's CLI **and** auth — and, for the subscription peers, quota:
+one tiny prompt whose usage-limit reply counts as unreachable — so it is also the peer preflight
+Step 0 needs:
 
 | Tier | PEER | Selected when |
 |---|---|---|

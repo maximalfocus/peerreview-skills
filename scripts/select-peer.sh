@@ -6,10 +6,11 @@
 # Tier 2, only when no tier-1 peer is reachable: the DeepSeek Harness `dsh`
 # (deepseek-v4-pro) for CDD-harnessed repos, otherwise Pi (deepseek-flash, V4.1).
 #
-# Invariant: PEER vendor != HOST vendor. A same-vendor pass is not a peer
-# review — this methodology's own evidence is that degraded same-vendor passes
-# miss whole defect families — so a DeepSeek HOST has no tier-2 fallback and
-# fails closed instead.
+# Invariant: PEER vendor != HOST vendor, where that vendor is read from the model
+# or endpoint in use — a process marker names the CLI, not the model behind it. A
+# same-vendor pass is not a peer review — this methodology's own evidence is that
+# degraded same-vendor passes miss whole defect families — so a DeepSeek HOST has
+# no tier-2 fallback and fails closed instead.
 #
 # Prints one line on success:
 #   HOST=<h> HOST_VENDOR=<v> PEER=<p> PEER_VENDOR=<v> DRIVER=<script> AUTH_SIDE=<p> TIER=<1|2>
@@ -33,6 +34,24 @@ driver_of() {
     codex)  printf 'codex-round.sh' ;;
     pi)     printf 'pi-round.sh' ;;
     dsh)    printf 'dsh-round.sh' ;;
+  esac
+}
+
+# The vendor behind the model or endpoint in use, when it names a known one: Claude
+# Code is routinely pointed at another vendor's Anthropic-compatible endpoint.
+detected_vendor() {
+  local m
+  for m in "${ANTHROPIC_MODEL:-}" "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}" \
+    "${ANTHROPIC_DEFAULT_SONNET_MODEL:-}" "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"; do
+    case "$m" in
+      *deepseek*) printf 'deepseek'; return ;;
+      *claude*)   printf 'anthropic'; return ;;
+      *gpt*|*o1-*|*o3-*|*o4-*) printf 'openai'; return ;;
+      *gemini*)   printf 'google'; return ;;
+    esac
+  done
+  case "${ANTHROPIC_BASE_URL:-}" in
+    *deepseek*) printf 'deepseek' ;;
   esac
 }
 
@@ -83,7 +102,13 @@ else
   printf 'peerreview: unsupported HOST; run /peerreview inside Claude Code, the Codex CLI, Pi, or the DeepSeek Harness.\n' >&2
   exit 69
 fi
-host_vendor="$(vendor_of "$host")"
+marker_vendor="$(vendor_of "$host")"
+host_vendor="$(detected_vendor)"
+[ -n "$host_vendor" ] || host_vendor="$marker_vendor"
+if [ "$host_vendor" != "$marker_vendor" ]; then
+  printf 'peerreview: HOST=%s runs %s models despite the %s CLI marker.\n' \
+    "$host" "$host_vendor" "$marker_vendor" >&2
+fi
 
 # --- PEER ladder ------------------------------------------------------------
 if cdd_harnessed "$repo"; then tier2=dsh; else tier2=pi; fi
