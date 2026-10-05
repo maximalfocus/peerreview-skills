@@ -83,8 +83,8 @@ review is never a substitute.
    this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
    and why, in the report. **A usage limit mid-run re-ladders, automatically:**
    re-run `select-peer.sh` (its quota probe skips an exhausted subscription peer) and continue with
-   a *different* peer it resolves (the same peer returned means no other peer is reachable, so fail
-   closed — verdict-pending at a verdict) in a fresh session whose first round carries the committed
+   a *different* peer it resolves (if the re-run returns the same peer, fail closed —
+   verdict-pending at a verdict) in a fresh session whose first round carries the committed
    state, the charter and the open findings; the one-round floor applies to the new peer, and
    the report names both peers, the switch and the tier that converged (user directive 2026-09-26:
    never stop on a quota wall while another cross-vendor peer is reachable). Any other failed/empty
