@@ -82,8 +82,8 @@ review is never a substitute.
    exits 69 only when no cross-vendor peer survives. Raw-API-key auth on a subscription side is not
    this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
    and why, in the report. **A usage limit mid-run re-ladders, automatically:** re-run
-   `select-peer.sh` (its quota probe now skips the exhausted peer) and continue with the peer it
-   resolves in a fresh session whose first round carries the committed state, the charter and the
+   `select-peer.sh` (its quota probe skips the exhausted peer) and continue with a *different* peer
+   it resolves in a fresh session whose first round carries the committed state, the charter and the
    open findings; the floor of one completed round applies to the new peer, and the report names
    both peers, the switch and the tier that converged (user directive 2026-09-26: never stop on a
    quota wall while another cross-vendor peer is reachable). A failed/empty round for any other
