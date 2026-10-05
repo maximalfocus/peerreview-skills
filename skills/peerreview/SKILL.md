@@ -81,15 +81,15 @@ review is never a substitute.
    --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile), and it
    exits 69 only when no cross-vendor peer survives. Raw-API-key auth on a subscription side is not
    this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
-   and why, in the report. **A usage limit mid-run re-ladders, automatically:** re-run
-   `select-peer.sh` (its quota probe skips the exhausted peer) and continue with a *different* peer
-   it resolves in a fresh session whose first round carries the committed state, the charter and the
-   open findings; the floor of one completed round applies to the new peer, and the report names
-   both peers, the switch and the tier that converged (user directive 2026-09-26: never stop on a
-   quota wall while another cross-vendor peer is reachable). A failed/empty round for any other
-   reason stays terminal: disclose the exact failure, clean `ACTIVE_CHARTER` if created, and stop.
-   A transient network failure may be re-probed once and retried fresh only after resolution is
-   green.
+   and why, in the report. **A usage limit mid-run re-ladders, automatically:**
+   re-run `select-peer.sh` (its quota probe skips an exhausted subscription peer) and continue with
+   a *different* peer it resolves (the same peer returned means no other peer is reachable, so fail
+   closed — verdict-pending at a verdict) in a fresh session whose first round carries the committed
+   state, the charter and the open findings; the one-round floor applies to the new peer, and
+   the report names both peers, the switch and the tier that converged (user directive 2026-09-26:
+   never stop on a quota wall while another cross-vendor peer is reachable). Any other failed/empty
+   round stays terminal: disclose the failure, clean `ACTIVE_CHARTER` if created, and stop. A
+   transient network failure may be re-probed once and retried fresh only after resolution is green.
 3. Working tree + delivery branch: note uncommitted changes. When durable intent names a GitHub
    issue/PR, read its live state before any commit: review an OPEN PR on its head branch; a MERGED
    PR/CLOSED issue needs a follow-up branch (or a stop), never review commits on the default branch
