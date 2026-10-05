@@ -634,12 +634,14 @@ must have run and been independently re-verified):
   convergence (orderflow-go, in full under "Keep the PEER review independent"; the neutral re-review
   also refuted 1 PEER-proposed regression). One round on a self-serving repo is a yellow flag —
   re-prove neutrally, do not rubber-stamp.
-  - **A peer usage-limit error during the verdict prompt is a "verdict-pending" residual, not a
-    silent CONVERGED** (student-mgmt-conformance 2026-05-29): a transient external failure, not a
-    NOT-CONVERGED outcome. Do not fabricate a verdict, treat reviewer-side green as one, or loop
-    while waiting (hours, or weeks on a monthly cap). Commit reviewer-applied edits, push per Step
-    6, record verdict-pending with the reset time the CLI returned, and tell the user to re-run
-    `/peerreview` after it; never re-ladder to another peer while the resolved side is blocked.
+  - **A peer usage-limit error during the verdict prompt is never a silent CONVERGED.** It is a
+    mid-run quota wall like any other and re-ladders per Step 0.2: the new peer's fresh session
+    runs its own floor round, then the verdict. Only when `select-peer.sh` resolves no other
+    cross-vendor peer is it a "verdict-pending" residual (student-mgmt-conformance 2026-05-29): a
+    transient external failure, not a NOT-CONVERGED outcome. Do not fabricate a verdict, treat
+    reviewer-side green as one, or loop while waiting (hours, or weeks on a monthly cap). Commit
+    reviewer-applied edits, push per Step 6, record verdict-pending with the reset time the CLI
+    returned, and tell the user to re-run `/peerreview` after it.
   - **The verdict prompt must make READING explicit, in its first paragraph, every time** — a
     read-only sandbox still permits reading every file and running read-only commands; "do not run
     commands" means no mutating commands, not "cannot read". A NOT CONVERGED premised on "review is
