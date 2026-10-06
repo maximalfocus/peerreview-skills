@@ -40,6 +40,9 @@ Keep acceptance criteria traceable to the Source of truth, not builder-invented.
      Keep every gate runnable in the PEER's read-only verdict sandbox: no here-documents or
      `<(...)`, since bash needs a temp file it cannot create there; save inline Python or awk as
      a file and run it (`python3 check.py`).
+     In every round the PEER's git runs only `scripts/git-guard.sh`'s read-only set in the
+     reviewed repo: read another revision with `git ls-tree` + `git show <rev>:<path>`, never
+     `git archive` (refused, exit 77; archwall PR #30 2026-10-06: each PEER gate run went red).
      One more exception: a FIDELITY gate comparing the artifact against a live
      upstream source of truth. Keep it a SEPARATE target from the offline
      primary gate and run it HOST-side — the PEER's sandbox routinely has no
