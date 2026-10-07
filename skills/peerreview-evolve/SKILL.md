@@ -99,8 +99,8 @@ module on the 2nd repo that matches it.
 ### GATE: Commit and publish (before skill exit)
 
 Every kept change must reach `maximalfocus/peerreview-skills` on `main` through a reviewed pull
-request — follow **Article 9** of the constitution: run `bash
-~/personal/idd-skills/scripts/protect-main.sh verify` before editing; edit `CONSTITUTION.md` and
+request — follow **Article 9** of the constitution (`main` has no branch protection, by the
+user's decision of 2026-10-07; the pull request is practice): edit `CONSTITUTION.md` and
 `skills/` only (there is no `commands/` mirror); from `main` equal to `origin/main` with nothing
 staged, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>` commits
 exactly those paths (never `git add -A`) on `evolve/<slug>` with an N-4 subject and the evidence in

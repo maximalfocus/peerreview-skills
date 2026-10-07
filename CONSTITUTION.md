@@ -162,34 +162,32 @@ review state, never a duplicate contract added to the reviewed repo; a pre-exist
 ## Article 9 — Commit and publish
 
 Every evolve change must reach `maximalfocus/peerreview-skills` on `main` through a reviewed pull
-request — local-only commits are worthless, and since 2026-09-09 GitHub refuses a direct push to
-`main` (ruleset `require-pull-request`: PR required, squash only, linear history, no force-push, no
-deletion, no bypass). Standing user authorization (2026-06-13, recorded in `CLAUDE.md`) covers
-routine skill/evolution edits + proposing their PR; landing waits for the maintainer's explicit
-instruction, and still confirm for destructive git ops. Concurrency (siblings/environments move
-`main` under you, working copy is shared):
+request — local-only commits are worthless. `main` has no branch protection (user's decision,
+2026-10-07: none of their repositories has it), so this discipline is practice, not enforcement:
+never push `main` directly, never force-push it. Standing user authorization (2026-06-13, recorded
+in `CLAUDE.md`) covers routine skill/evolution edits + proposing their PR; landing waits for the
+maintainer's explicit instruction, and still confirm for destructive git ops. Concurrency
+(siblings/environments move `main` under you, working copy is shared):
 
-1. **Verify the protection before editing** — `bash ~/personal/idd-skills/scripts/protect-main.sh
-   verify`; if it fails, stop and report it rather than editing.
-2. **Stage only the paths this session changed** — `propose.sh` commits exactly the paths you name;
+1. **Stage only the paths this session changed** — `propose.sh` commits exactly the paths you name;
    never `-A`/`-u`/`.`. Leave files you didn't touch.
-3. **Edit only task-coupled methodology sources/support** — `CONSTITUTION.md`, `skills/`, and
+2. **Edit only task-coupled methodology sources/support** — `CONSTITUTION.md`, `skills/`, and
    directly invoked `scripts/`/`templates/` or their README documentation. There is no `commands/`
    mirror to regenerate (unlike cdd-skills).
-4. **Propose, never write `main`** — `main` is protected (pull request required, squash only) and
-   refuses a direct push. From `main` equal to `origin/main` (`git pull --ff-only` when behind) with
-   an empty index, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>`
+3. **Propose, never write `main`** — every change reaches `main` through a reviewed pull request,
+   squash merged. From `main` equal to `origin/main` (`git pull --ff-only` when behind) with an
+   empty index, `bash ~/personal/idd-skills/scripts/propose.sh <slug> <message-file> <paths...>`
    commits those paths on `evolve/<slug>` (N-3), pushes it, opens the PR with the N-4 subject
    (`<type>(<scope>)?: <lowercase imperative>`, ≤72 chars) as title and the evidence body as
    description, and returns the checkout to `main`. Never force-push; if it refuses, fix the
    precondition it names and rerun — never work around it with raw pushes. One exception, and only
    this one: an **open PR's own branch may be rebased onto `main`** when a conflict makes it
    unmergeable, and that rebase is force-pushed to that branch. `main` is never force-pushed, the
-   rebase changes nothing but the conflict resolution, the gate is re-run afterwards on the
-   rebased head, and the landing report states how each conflict was resolved — a rebase of
-   someone else's PR is a change to their work, so it is disclosed, not assumed (peerreview-skills
-   PR #13, 2026-09-23: rebased onto a landed fix that had rewritten the same line).
-5. Verify the size gate; stop and report the PR URL. Landing happens only through `bash
+   rebase changes nothing but the conflict resolution, the gate is re-run afterwards on the rebased
+   head, and the landing report states how each conflict was resolved — a rebase of someone else's
+   PR is a change to their work, so it is disclosed, not assumed (peerreview-skills PR #13,
+   2026-09-23: rebased onto a landed fix that had rewritten the same line).
+4. Verify the size gate; stop and report the PR URL. Landing happens only through `bash
    ~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the maintainer's explicit instruction
    after review (by hand or `/peerreview`): squash merge as `<title> (#PR)`, `main` fast-forwarded,
    branch deleted locally and on origin. Scope of auto-propose: **this repo only** — repos under

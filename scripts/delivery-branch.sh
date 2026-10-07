@@ -5,9 +5,9 @@
 #
 # Standing user preference (2026-08-18/19, asked on three consecutive runs): the
 # round-by-round history is review evidence, not product history, so the
-# reviewed repo should receive a single reviewed commit. Since 2026-09-09 the
-# default branch is protected (PR required, squash only), so `land` never
-# writes it: the squashed commit stays on evolve/<slug>, and the merge happens
+# reviewed repo should receive a single reviewed commit. The default branch
+# takes reviewed pull requests only (practice, not branch protection), so
+# `land` never writes it: the squashed commit stays on evolve/<slug>, and the merge happens
 # only through `~/personal/idd-skills/scripts/land-evolution.sh <PR>` on the
 # maintainer's explicit instruction.
 #

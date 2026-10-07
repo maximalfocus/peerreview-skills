@@ -6,7 +6,7 @@
 # is that re-running after a fix costs nothing. The "must not refuse" cases are
 # load-bearing: a false rejection blocks delivery of a finished review in a
 # repository peerreview does not own. And a landing never writes the base
-# branch (protected since 2026-09-09): the squash goes to evolve/<slug>, that
+# branch (pull requests only, by practice): the squash goes to evolve/<slug>, that
 # branch is pushed, and a pull request is opened — or reused — for it.
 set -euo pipefail
 
