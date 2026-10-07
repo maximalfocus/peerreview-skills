@@ -10,12 +10,10 @@ diagnostic source). Re-creating any such log is a violation of Article 1.
 
 The user has standing authorization (2026-06-13) to commit routine work in this repo and open its
 pull request without being prompted each time. When a task that modifies `skills/` or
-`CONSTITUTION.md` reaches a clean stopping point, propose it yourself. Since 2026-09-09 `main` is
-protected on GitHub (ruleset `require-pull-request`: PR required, squash only, linear history, no
-force-push, no deletion, no bypass) — a direct push is refused.
+`CONSTITUTION.md` reaches a clean stopping point, propose it yourself. `main` has no branch
+protection (user's decision, 2026-10-07: no repository of theirs has it); every change still reaches
+it only through a reviewed pull request, by practice.
 
-- **Verify first.** `bash ~/personal/idd-skills/scripts/protect-main.sh verify` before an evolve
-  pass edits anything.
 - **Stage only this task's changeset.** `propose.sh` commits exactly the paths you name — **never
   `git add -A`**. This repo can carry unrelated dirty files from sibling/parallel sessions; sweeping
   them into an unrelated commit is the failure mode to avoid.
@@ -98,7 +96,7 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   mechanical grammar.
 - **PR title (N-2).** Character-identical to the issue it delivers. If the wording is wrong, edit
   the issue first, then match it.
-- **Branch (N-3).** `main` is protected and takes pull requests only; nothing commits directly to
+- **Branch (N-3).** `main` takes pull requests only; nothing commits directly to
   it. Kept evolve changes travel on `evolve/<lowercase-kebab-slug>` (created by `propose.sh`) and
   their PR title is the N-4 commit subject; issue work uses
   `issue/<issue-number>-<lowercase-kebab-slug>`.
