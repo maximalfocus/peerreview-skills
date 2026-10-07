@@ -576,8 +576,13 @@ by building is itself a finding — record it and move on); **where the source o
 unmounted source is "not on this machine, do not search outside the repo", or the PEER hunts the
 host for it (build-redis 2026-09-08: round 1 spent its 30 min `rg`-ing `~/personal` and
 `/private/tmp` for the course; round 2, so briefed plus a report-by-minute-N budget, finished in
-11); and **append each verified finding to a `FINDINGS.md` the moment it is verified**, never
-batched, so a kill still yields a report. If it still overruns, split by explicit file scope and
+11); and **append each verified finding to a findings file the moment it is verified**, never
+batched, so a kill still yields a report — at a path neither tracked nor already present
+(`git ls-files --error-unmatch <path>` fails and `test ! -e <path>` passes; one-brim-autotest PR
+#333: the brief's `FINDINGS.md` was tracked, and the PEER appended 36 lines to it). HOST: that file
+is review scaffolding, never product — never stage it (stage explicit paths, not `git add -A`);
+fold its findings into the round, then delete it before any commit or hand-off, so nothing adds it.
+If it still overruns, split by explicit file scope and
 feed each later half the prior half's accepted findings. (vvah-memo 2026-09-08: two 25-min rounds
 died unreported; the third, briefed, returned 22 findings. doc-portal 2026-08-19: two bounded halves
 finished where one was killed.) **A killed round's edits are disposed of, never adopted** — snapshot
