@@ -49,7 +49,11 @@ add_dirs="${PEERREVIEW_ADD_DIRS:-${CODEX_ADD_DIRS:-}}"
 if [ -n "$add_dirs" ]; then
   while IFS= read -r dir; do
     [ -n "$dir" ] || continue
-    [ -d "$dir" ] || { printf 'peerreview: PEERREVIEW_ADD_DIRS path is not a directory: %s\n' "$dir" >&2; exit 66; }
+    [ -d "$dir" ] || {
+      printf 'peerreview: PEERREVIEW_ADD_DIRS path is not a directory: %s %s\n' "$dir" \
+        '(one directory per line, not a :-list)' >&2
+      exit 66
+    }
     add_dir_args+=(--add-dir "$dir")
   done <<< "$add_dirs"
 fi

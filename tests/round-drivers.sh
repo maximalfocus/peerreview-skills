@@ -284,6 +284,16 @@ CODEX_ADD_DIRS="$tmp/scratch" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/p
   "$tmp/codex.out" --fresh
 contains "$CODEX_FAKE_LOG" "--add-dir $tmp/scratch"
 if CODEX_ADD_DIRS="$tmp/does-not-exist" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "missing CODEX_ADD_DIRS path was accepted"; fi
+# A PATH-style :-list is the natural wrong guess: refused, naming the separator
+# (bsdc-tools#103 review).
+for drv in codex-round.sh claude-round.sh; do
+  if PEERREVIEW_ADD_DIRS="$tmp/scratch:$tmp/scratch2" "$root/scripts/$drv" "$tmp/repo" \
+    "$tmp/prompt" "$tmp/colon.out" 1 >/dev/null 2>"$tmp/colon.err"; then
+    fail "$drv accepted a :-separated PEERREVIEW_ADD_DIRS"
+  fi
+  grep -q 'one directory per line, not a :-list' "$tmp/colon.err" ||
+    fail "$drv refusal does not name the separator: $(cat "$tmp/colon.err")"
+done
 
 if CODEX_FAKE_AUTH=none "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "unauthenticated Codex was accepted"; fi
 if CODEX_FAKE_RC=42 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "failed Codex round was accepted"; fi
