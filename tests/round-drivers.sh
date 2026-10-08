@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Each assertion owns its directory grants, independent of the HOST environment.
+unset PEERREVIEW_ADD_DIRS CODEX_ADD_DIRS
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/peerreview-driver-test.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
@@ -284,6 +287,21 @@ CODEX_ADD_DIRS="$tmp/scratch" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/p
   "$tmp/codex.out" --fresh
 contains "$CODEX_FAKE_LOG" "--add-dir $tmp/scratch"
 if CODEX_ADD_DIRS="$tmp/does-not-exist" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "missing CODEX_ADD_DIRS path was accepted"; fi
+# A PATH-style :-list is the natural wrong guess: refused, naming the separator
+# (bsdc-tools#103 review).
+for drv in codex-round.sh claude-round.sh; do
+  export CLAUDE_FAKE_LOG="$tmp/claude.log"
+  : > "$CODEX_FAKE_LOG"
+  : > "$CLAUDE_FAKE_LOG"
+  rc=0
+  PEERREVIEW_ADD_DIRS="$tmp/scratch:$tmp/scratch2" "$root/scripts/$drv" "$tmp/repo" \
+    "$tmp/prompt" "$tmp/colon.out" 1 >/dev/null 2>"$tmp/colon.err" || rc=$?
+  [ "$rc" -eq 66 ] || fail "$drv invalid directory refusal returned $rc instead of 66"
+  [ ! -s "$CODEX_FAKE_LOG" ] && [ ! -s "$CLAUDE_FAKE_LOG" ] ||
+    fail "$drv launched a peer for invalid PEERREVIEW_ADD_DIRS"
+  grep -q 'one directory per line, not a :-list' "$tmp/colon.err" ||
+    fail "$drv refusal does not name the separator: $(cat "$tmp/colon.err")"
+done
 
 if CODEX_FAKE_AUTH=none "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "unauthenticated Codex was accepted"; fi
 if CODEX_FAKE_RC=42 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "failed Codex round was accepted"; fi
