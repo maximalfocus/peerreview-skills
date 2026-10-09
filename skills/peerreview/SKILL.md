@@ -612,7 +612,11 @@ must have run and been independently re-verified):
   system runs its read-only/dry-run path against that system, since a stub written from the same
   belief as the code agrees with it (one-brim-autotest 2026-09-27: a CONVERGED deploy tool refused
   on the real server, which sends no `sap-user` header its stub did; unreachable → Step 4's
-  un-runnable gate rule); scan for structurally-duplicate
+  un-runnable gate rule); for a tool whose safety is its refusals, enumerate the code's refusal
+  sites (every raise/exit/refuse branch), not the charter's rule list, and mutation-test each — a
+  correct refusal no test reaches is a finding (same tool: 22/22 charter-rule mutants died and it
+  CONVERGED, then a sweep of the sites found 15 refusals whose mutants survived);
+  scan for structurally-duplicate
   codepaths one tested at the function boundary while the other actually runs in production; probe
   undocumented env-var / global coupling. Cosmetic-only nits do not block.
 - The working tree is clean and every change is committed. *(Path-scoped git policy: instead — all
