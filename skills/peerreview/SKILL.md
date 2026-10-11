@@ -743,7 +743,11 @@ On convergence, land a branch-mode review with `scripts/delivery-branch.sh land 
 the base branch (title = subject, body = message body), prints the PR URL, and never writes the base
 branch — then create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
 <PR>` on the maintainer's explicit instruction merges it, never this run. The review branch is kept
-locally; its round commits remain the detailed record.
+locally; its round commits remain the detailed record. That script refuses a PR whose range adds
+a line over 100 characters in any file, so a repo it lands runs the same check in every round's
+gate: `bash ~/personal/idd-skills/scripts/line-width.sh check origin/<default> HEAD` (the repo's
+own `width.sh` may read fewer files; peerreview-skills PR #35 2026-10-11 converged, then was
+refused at landing on 20 wide script and test lines its rounds had added).
 
 Then **always commit and push the reviewed repo** — every run, on convergence *or* non-progress
 abort, without asking. Push the working branch to its tracking remote and state the branch/remote in
