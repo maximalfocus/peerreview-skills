@@ -55,6 +55,7 @@ peerreview-skills/
 ├── scripts/delivery-branch.sh          ← review-on-a-branch, landed as one-commit PR
 ├── scripts/width.sh                    ← 100-character line gate + lossless rewrap
 ├── scripts/chat-review-temp.sh         ← ephemeral `--chat` workspace lifecycle
+├── scripts/chat-review-record.sh       ← record of a CONVERGED `--chat` review, for a tool
 ├── scripts/peer-auth.sh                ← credential-safe per-side auth preflight
 ├── scripts/select-peer.sh              ← deterministic HOST→PEER routing
 ├── scripts/charter-temp.sh             ← private active-charter lifecycle
@@ -62,6 +63,7 @@ peerreview-skills/
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
 ├── tests/round-drivers.sh              ← peer routing, driver, and guard smoke tests
 ├── tests/width.sh                      ← width.sh check/fix behaviour
+├── tests/chat-review-record.sh         ← the record's pass path and every refusal
 ├── LICENSE                             ← MIT
 └── README.md
 ```
