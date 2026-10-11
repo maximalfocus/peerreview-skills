@@ -17,8 +17,9 @@
 # clean tracked tree, committed regular files at those paths, and a regular verdict file not older
 # than the commit. A line must start with the CONVERGED token (case-sensitive, Markdown markers
 # allowed), and no line may start with NOT CONVERGED (case-insensitive, whitespace-normalized).
-# With HOME set and no symlink or non-directory below HOME in the record path, it uses an owned folder
-# with mode 700, writes a mode 600 record atomically, and refuses an existing destination name.
+# With HOME set and no symlink or non-directory below HOME in the record path, it uses an owned
+# folder with mode 700, writes a mode 600 record atomically, and refuses an existing destination
+# name.
 # It prints the record's path:
 #   ~/.local/state/peerreview/chat-converged/<sha256>-<utc time>-<pid>.json
 #   {"v":1,"sha256":…,"verdict_sha256":…,"file":…,"verdict":"CONVERGED","peer":…,
@@ -80,7 +81,8 @@ if command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256); else sum=(sha256
 sha=$(git -C "$resolved" cat-file blob "HEAD:$file" | "${sum[@]}" | awk '{print $1}')
 [[ $sha =~ ^[0-9a-f]{64}$ ]] || { echo "chat-review-record: could not hash the file" >&2; exit 1; }
 verdict_sha=$("${sum[@]}" < "$verdict" | awk '{print $1}')
-[[ $verdict_sha =~ ^[0-9a-f]{64}$ ]] || { echo "chat-review-record: could not hash the verdict" >&2; exit 1; }
+[[ $verdict_sha =~ ^[0-9a-f]{64}$ ]] ||
+  { echo "chat-review-record: could not hash the verdict" >&2; exit 1; }
 
 [[ -n ${HOME:-} ]] || refuse "HOME is unset"
 dir=$HOME/.local/state/peerreview/chat-converged

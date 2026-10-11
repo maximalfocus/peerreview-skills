@@ -11,6 +11,8 @@ export HOME="$base/home" TMPDIR="$base/tmp"
 record="$root/scripts/chat-review-record.sh"
 records="$HOME/.local/state/peerreview/chat-converged"
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+F_MSG="the file is not a committed regular file at an accepted relative path"
+M_MSG="the meta file is not a committed regular file at an accepted relative path"
 
 new_ws() {  # a chat workspace with a committed reply and meta file; prints its path
   local ws
@@ -46,13 +48,15 @@ out=$(bash "$record" "$ws" "$v" codex REPLY.txt SEND.json)
 case "$out" in "$records"/*.json) ;; *) fail "record path: $out" ;; esac
 want_sha=$(git -C "$ws" cat-file blob "HEAD:REPLY.txt" | shasum -a 256 | awk '{print $1}')
 want_verdict_sha=$(shasum -a 256 < "$v" | awk '{print $1}')
-python3 - "$out" "$want_sha" "$(git -C "$ws" rev-parse HEAD)" "$want_verdict_sha" <<'PY' || fail "record content"
+python3 - "$out" "$want_sha" "$(git -C "$ws" rev-parse HEAD)" "$want_verdict_sha" \
+  <<'PY' || fail "record content"
 import datetime, json, os, stat, sys
 path, sha, head, verdict_sha = sys.argv[1:5]
 rec = json.load(open(path, encoding="utf-8"))
 t = datetime.datetime.fromisoformat(rec.pop("time"))
 assert t.tzinfo is not None and abs((datetime.datetime.now(t.tzinfo) - t).total_seconds()) < 120, t
-assert rec == {"v": 1, "sha256": sha, "verdict_sha256": verdict_sha, "file": "REPLY.txt", "verdict": "CONVERGED", "peer": "codex",
+assert rec == {"v": 1, "sha256": sha, "verdict_sha256": verdict_sha, "file": "REPLY.txt",
+               "verdict": "CONVERGED", "peer": "codex",
                "head": head, "meta": {"chat": "Group One",
                                       "answers": "wx#2@Group-One/2026-10-11-070000-new.md"}}, rec
 assert os.path.basename(path).startswith(sha + "-"), path
@@ -113,21 +117,21 @@ refused "old verdict" "the verdict output is older than the reviewed commit" \
   "$ws" "$v" codex REPLY.txt
 touch "$v"
 refused "bad peer" "the peer name is not a driver name" "$ws" "$v" 'codex"x' REPLY.txt
-refused "untracked file" "the file is not a committed regular file at an accepted relative path" \
+refused "untracked file" "$F_MSG" \
   "$ws" "$v" codex NONE.txt
-refused "linked file" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex LINK.txt
-refused "path escape" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex ../x
-refused "dot-dot component" "the file is not a committed regular file at an accepted relative path" \
+refused "linked file" "$F_MSG" "$ws" "$v" codex LINK.txt
+refused "path escape" "$F_MSG" "$ws" "$v" codex ../x
+refused "dot-dot component" "$F_MSG" \
   "$ws" "$v" codex dir/../REPLY.txt
-refused "absolute file" "the file is not a committed regular file at an accepted relative path" \
+refused "absolute file" "$F_MSG" \
   "$ws" "$v" codex "$ws/REPLY.txt"
-refused "empty file path" "the file is not a committed regular file at an accepted relative path" \
+refused "empty file path" "$F_MSG" \
   "$ws" "$v" codex ''
-refused "trailing slash" "the file is not a committed regular file at an accepted relative path" \
+refused "trailing slash" "$F_MSG" \
   "$ws" "$v" codex REPLY.txt/
-refused "dot prefix" "the file is not a committed regular file at an accepted relative path" \
+refused "dot prefix" "$F_MSG" \
   "$ws" "$v" codex ./REPLY.txt
-refused "dot component" "the file is not a committed regular file at an accepted relative path" \
+refused "dot component" "$F_MSG" \
   "$ws" "$v" codex DIR/./inside.txt
 printf 'x\n' > "$ws/-dash.txt"
 printf 'x\n' > "$ws/A*.txt"
@@ -139,10 +143,10 @@ git -C "$ws" commit -qm 'odd path fixtures'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
 for odd_path in -dash.txt $'line\nbreak.txt'; do
   refused "special file path $odd_path" \
-    "the file is not a committed regular file at an accepted relative path" \
+    "$F_MSG" \
     "$ws" "$v" codex "$odd_path"
   refused "special meta path $odd_path" \
-    "the meta file is not a committed regular file at an accepted relative path" \
+    "$M_MSG" \
     "$ws" "$v" codex REPLY.txt "$odd_path"
 done
 mkdir -p "$ws/DIR"
@@ -151,7 +155,7 @@ printf 'nested option-like name\n' > "$ws/DIR/-x"
 git -C "$ws" add DIR
 git -C "$ws" commit -qm 'tree and gitlink fixtures'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
-refused "tree path" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex DIR
+refused "tree path" "$F_MSG" "$ws" "$v" codex DIR
 mkdir "$base/subrepo"
 git -C "$base/subrepo" init -q
 git -C "$base/subrepo" config user.name Test
@@ -162,18 +166,18 @@ git -C "$base/subrepo" commit -qm submodule
 git -C "$ws" -c protocol.file.allow=always submodule add "$base/subrepo" SUBMODULE >/dev/null
 git -C "$ws" commit -qm 'gitlink fixture'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
-refused "submodule path" "the file is not a committed regular file at an accepted relative path" \
+refused "submodule path" "$F_MSG" \
   "$ws" "$v" codex SUBMODULE
-refused "untracked meta" "the meta file is not a committed regular file at an accepted relative path" \
+refused "untracked meta" "$M_MSG" \
   "$ws" "$v" codex REPLY.txt N.json
 refused "empty meta path" "the meta path is empty" "$ws" "$v" codex REPLY.txt ''
-refused "absolute meta path" "the meta file is not a committed regular file at an accepted relative path" \
+refused "absolute meta path" "$M_MSG" \
   "$ws" "$v" codex REPLY.txt "$ws/SEND.json"
-refused "meta trailing slash" "the meta file is not a committed regular file at an accepted relative path" \
+refused "meta trailing slash" "$M_MSG" \
   "$ws" "$v" codex REPLY.txt SEND.json/
-refused "meta dot-dot component" "the meta file is not a committed regular file at an accepted relative path" \
+refused "meta dot-dot component" "$M_MSG" \
   "$ws" "$v" codex REPLY.txt DIR/../SEND.json
-refused "meta dot prefix" "the meta file is not a committed regular file at an accepted relative path" \
+refused "meta dot prefix" "$M_MSG" \
   "$ws" "$v" codex REPLY.txt ./SEND.json
 refused "glob meta path" "the meta file is not a JSON object" \
   "$ws" "$v" codex REPLY.txt 'A*.txt'
@@ -196,7 +200,10 @@ empty=$(bash "$root/scripts/chat-review-temp.sh" new)
 refused "no commit" "the workspace has no commit" "$empty" "$v" codex REPLY.txt
 rc=0; home_err=$(env -u HOME bash "$record" "$ws" "$v" codex REPLY.txt 2>&1 >/dev/null) || rc=$?
 [ "$rc" -eq 65 ] || fail "unset HOME: rc=$rc"
-case "$home_err" in *"refused, no record written: HOME is unset"*) ;; *) fail "unset HOME: $home_err" ;; esac
+case "$home_err" in
+  *"refused, no record written: HOME is unset"*) ;;
+  *) fail "unset HOME: $home_err" ;;
+esac
 mkdir -p "$(dirname "$records")" "$base/real-records"
 mv "$records" "$base/records-backup"
 ln -s "$base/real-records" "$records"
@@ -232,15 +239,20 @@ rc=0
 owner_err=$(REAL_STAT="$real_stat" PATH="$base/mockbin:$PATH" bash "$record" \
   "$ws" "$v" codex REPLY.txt 2>&1 >/dev/null) || rc=$?
 [ "$rc" -eq 65 ] || fail "foreign-owned record folder: rc=$rc"
-case "$owner_err" in *"refused, no record written: the record folder is not owned by this user"*) ;; *) fail "foreign-owned record folder: $owner_err" ;; esac
-record_mode=$(python3 -c 'import os, stat, sys; print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode))[2:])' "$records")
+case "$owner_err" in
+  *"refused, no record written: the record folder is not owned by this user"*) ;;
+  *) fail "foreign-owned record folder: $owner_err" ;;
+esac
+record_mode=$(python3 -c \
+  'import os, stat, sys; print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode))[2:])' "$records")
 [ "$record_mode" = 755 ] || \
   fail "foreign-owned record folder permissions changed"
 chmod 700 "$records"
 rc=0
 usage_err=$(bash "$record" "$ws" "$v" codex 2>&1 >/dev/null) || rc=$?
 [ "$rc" -eq 64 ] || fail "usage: rc=$rc"
-expected_usage='Usage: chat-review-record.sh <chat_workspace> <verdict_out> <peer> <file> [<meta_json>]'
+expected_usage='Usage: chat-review-record.sh <chat_workspace> <verdict_out> <peer> <file>'
+expected_usage="$expected_usage [<meta_json>]"
 [ "$usage_err" = "$expected_usage" ] || fail "usage text: [$usage_err]"
 [ "$(count)" = 2 ] || fail "a refusal wrote a record"
 # the last refusal cleared, the same call passes again: the refusals above were not a broken fixture
@@ -286,7 +298,8 @@ PY
 tracked_record=$(bash "$record" "$tracked_ws" "$tracked_ws/VERDICT.md" codex REPLY.txt)
 [ -f "$tracked_record" ] || fail "tracked verdict output was refused"
 
-# Pin the limit: after a later commit, refreshing an old verdict mtime still authorizes the new bytes.
+# Pin the limit: after a later commit, refreshing an old verdict mtime still authorizes the new
+# bytes.
 stale_ws=$(bash "$root/scripts/chat-review-temp.sh" new)
 printf 'old reviewed bytes\n' > "$stale_ws/REPLY.txt"
 git -C "$stale_ws" add REPLY.txt
@@ -322,8 +335,14 @@ printf sentinel > "$target"
 exec bash "$record" "$ws" "$verdict" codex REPLY.txt
 ' _ "$ws" "$v" "$record" "$records" 2>&1) || collision_rc=$?
 [ "$collision_rc" -eq 65 ] || fail "destination collision rc=$collision_rc"
-case "$collision_err" in *"record already exists at the destination path"*) ;; *) fail "destination collision: $collision_err" ;; esac
-case "$(cat "$records"/*20000101T000000Z-*.json)" in sentinel) ;; *) fail "existing collision record was replaced" ;; esac
+case "$collision_err" in
+  *"record already exists at the destination path"*) ;;
+  *) fail "destination collision: $collision_err" ;;
+esac
+case "$(cat "$records"/*20000101T000000Z-*.json)" in
+  sentinel) ;;
+  *) fail "existing collision record was replaced" ;;
+esac
 ls "$records"/.record.* >/dev/null 2>&1 && fail "destination refusal left a temp record"
 
 printf 'PASS: chat review record\n'
