@@ -148,15 +148,18 @@ tool will act on the result: commit that file (the exact bytes, e.g. `REPLY.txt`
 JSON object the tool reads (e.g. `SEND.json`: the chat, the message answered) beside `ARTIFACT.md`
 so the PEER reviews them, and after the PEER's `CONVERGED` verdict, before cleanup, run `bash
 ~/personal/peerreview-skills/scripts/chat-review-record.sh "$CHAT_WORKSPACE" <verdict-out> <peer>
-<file> [<meta.json>]`. It refuses without a CONVERGED verdict newer than the reviewed commit and
-writes one record (the committed file's SHA-256, verdict-file SHA-256, peer, time, meta) under
-`~/.local/state/peerreview/chat-converged/`; report its path. Never write a record by hand, on
-NOT CONVERGED, on verdict-pending, or for a file the PEER did not see; the workspace is still
-cleaned and nothing else outlives it. The verdict is bound to the commit only by its file mtime
-being no earlier than the commit time; refreshing or hand-writing that file defeats the check, so
-the record is evidence only when review ran through this skill, and the peer is the name the HOST
-passes. The optional meta object is generic: each consumer decides which fields it needs, and may
-refuse a record without them.
+<file> [<meta.json>]`. It refuses invalid inputs and a CONVERGED verdict older than the reviewed
+commit; an existing record is preserved. After validation it writes one record (the committed
+file's SHA-256 and path, verdict-file SHA-256, CONVERGED verdict, peer, time with UTC offset,
+reviewed commit, and committed meta object) under `~/.local/state/peerreview/chat-converged/`;
+report its path. Use a nonempty, exact workspace-root-relative path: no absolute path, leading
+dash, newline, `.` or `..` component, or trailing slash; a later component may start with a dash.
+Never write a record by hand, on NOT CONVERGED, on verdict-pending, or for a file the PEER
+did not see. Afterward, clean the workspace; only the record persists. The
+verdict's only commit binding is its mtime, which must be no earlier than the commit. Refreshing or
+hand-writing that file defeats the check, so the record is evidence only when review ran through
+this skill; the peer is the name the HOST passes. The optional meta object is generic: each consumer
+decides which fields it needs, and may refuse a record without them.
 
 ## Required-peer failure (fail closed)
 

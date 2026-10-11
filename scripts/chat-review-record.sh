@@ -7,23 +7,32 @@
 # Run by the HOST right after the PEER's verdict and before `chat-review-temp.sh clean`.
 # Usage: chat-review-record.sh <chat_workspace> <verdict_out> <peer> <file> [<meta_json>]
 #   <verdict_out>  the file the round driver wrote for the --verdict round
-#   <peer>         the PEER that returned it, as select-peer.sh named it (codex, claude, pi, dsh)
-#   <file>         the reviewed file, committed in the workspace; its committed bytes are hashed
+#   <peer>         the PEER name supplied by the HOST (typically codex, claude, pi, or dsh)
+#   <file>         committed file whose bytes are hashed
 #   <meta_json>    optional committed JSON object the consuming tool reads (e.g. the chat)
-# A consumer decides whether the optional meta object has the fields it needs.
-# It refuses (and writes nothing) unless the workspace is one chat-review-temp.sh made, its
-# tracked tree is clean, <file> and <meta_json> are committed regular files, and
-# <verdict_out> is newer than the reviewed commit and holds a CONVERGED verdict line and no
-# NOT CONVERGED line. It prints the record's path:
+# <file> and <meta_json> are exact workspace-root-relative paths: nonempty, not absolute, no
+# leading dash, newline, . or .. component, or trailing slash. A later component may start '-'.
+# When given, <meta_json> must be a committed JSON object; consumers decide which fields they need.
+# It checks for a chat-review-temp path and marker (provenance depends on the skill running), a
+# clean tracked tree, committed regular files at those paths, and a regular verdict file not older
+# than the commit. A line must start with the CONVERGED token (case-sensitive, Markdown markers
+# allowed), and no line may start with NOT CONVERGED (case-insensitive, whitespace-normalized).
+# With HOME set and no symlink or non-directory below HOME in the record path, it uses an owned folder
+# with mode 700, writes a mode 600 record atomically, and refuses an existing destination name.
+# It prints the record's path:
 #   ~/.local/state/peerreview/chat-converged/<sha256>-<utc time>-<pid>.json
 #   {"v":1,"sha256":…,"verdict_sha256":…,"file":…,"verdict":"CONVERGED","peer":…,
 #    "time":…,"head":…,"meta":{…}}
 # Exit 64 usage, 65 a refused input, 1 anything else.
 set -euo pipefail
 
-[ "$#" -eq 4 ] || [ "$#" -eq 5 ] || { sed -n '5p' "$0" | cut -c3- >&2; exit 64; }
-ws=$1 verdict=$2 peer=$3 file=$4 meta=${5:-}
 refuse() { printf 'chat-review-record: refused, no record written: %s\n' "$1" >&2; exit 65; }
+[ "$#" -eq 4 ] || [ "$#" -eq 5 ] || { sed -n '5p' "$0" | cut -c3- >&2; exit 64; }
+ws=$1 verdict=$2 peer=$3 file=$4 meta=
+if [ "$#" -eq 5 ]; then
+  meta=$5
+  [[ -n $meta ]] || refuse "the meta path is empty"
+fi
 
 root=${TMPDIR:-/tmp}
 root=${root%/}
@@ -42,12 +51,14 @@ head=$(git -C "$resolved" rev-parse --verify -q HEAD) || refuse "the workspace h
   refuse "the workspace's tracked files differ from the reviewed commit"
 committed() {  # a regular file at HEAD, named by its path from the workspace root
   local row
-  case "$1" in ''|/*|-*|..|../*|*/..|*/../*) return 1 ;; esac
+  case "$1" in ''|/*|-*|..|../*|*/..|*/../*|.|./*|*/.|*/./*|*/) return 1 ;; esac
+  [[ $1 != *$'\n'* ]] || return 1
   row=$(git -C "$resolved" ls-tree HEAD -- ":(literal)$1") || return 1
   [[ $row == 100644\ blob\ * || $row == 100755\ blob\ * ]] && [[ ${row#*$'\t'} == "$1" ]]
 }
-committed "$file" || refuse "the reviewed file is not a committed regular file of the workspace"
-[ -z "$meta" ] || committed "$meta" || refuse "the meta file is not a committed regular file"
+committed "$file" || refuse "the file is not a committed regular file at an accepted relative path"
+[ -z "$meta" ] || committed "$meta" ||
+  refuse "the meta file is not a committed regular file at an accepted relative path"
 
 [[ -f $verdict && ! -L $verdict ]] || refuse "the verdict output is not a regular file"
 commit_time=$(git -C "$resolved" log -1 --format=%ct HEAD)

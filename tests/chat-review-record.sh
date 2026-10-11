@@ -113,14 +113,22 @@ refused "old verdict" "the verdict output is older than the reviewed commit" \
   "$ws" "$v" codex REPLY.txt
 touch "$v"
 refused "bad peer" "the peer name is not a driver name" "$ws" "$v" 'codex"x' REPLY.txt
-refused "untracked file" "the reviewed file is not a committed regular file" \
+refused "untracked file" "the file is not a committed regular file at an accepted relative path" \
   "$ws" "$v" codex NONE.txt
-refused "linked file" "the reviewed file is not a committed regular file" "$ws" "$v" codex LINK.txt
-refused "path escape" "the reviewed file is not a committed regular file" "$ws" "$v" codex ../x
-refused "dot-dot component" "the reviewed file is not a committed regular file" \
+refused "linked file" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex LINK.txt
+refused "path escape" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex ../x
+refused "dot-dot component" "the file is not a committed regular file at an accepted relative path" \
   "$ws" "$v" codex dir/../REPLY.txt
-refused "absolute file" "the reviewed file is not a committed regular file" \
+refused "absolute file" "the file is not a committed regular file at an accepted relative path" \
   "$ws" "$v" codex "$ws/REPLY.txt"
+refused "empty file path" "the file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex ''
+refused "trailing slash" "the file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex REPLY.txt/
+refused "dot prefix" "the file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex ./REPLY.txt
+refused "dot component" "the file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex DIR/./inside.txt
 printf 'x\n' > "$ws/-dash.txt"
 printf 'x\n' > "$ws/A*.txt"
 printf 'x\n' > "$ws/AB.txt"
@@ -130,17 +138,20 @@ git -C "$ws" add -- -dash.txt 'A*.txt' AB.txt two..dots.txt $'line\nbreak.txt'
 git -C "$ws" commit -qm 'odd path fixtures'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
 for odd_path in -dash.txt $'line\nbreak.txt'; do
-  refused "special file path $odd_path" "the reviewed file is not a committed regular file" \
+  refused "special file path $odd_path" \
+    "the file is not a committed regular file at an accepted relative path" \
     "$ws" "$v" codex "$odd_path"
-  refused "special meta path $odd_path" "the meta file is not a committed regular file" \
+  refused "special meta path $odd_path" \
+    "the meta file is not a committed regular file at an accepted relative path" \
     "$ws" "$v" codex REPLY.txt "$odd_path"
 done
 mkdir -p "$ws/DIR"
 printf 'x\n' > "$ws/DIR/inside.txt"
+printf 'nested option-like name\n' > "$ws/DIR/-x"
 git -C "$ws" add DIR
 git -C "$ws" commit -qm 'tree and gitlink fixtures'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
-refused "tree path" "the reviewed file is not a committed regular file" "$ws" "$v" codex DIR
+refused "tree path" "the file is not a committed regular file at an accepted relative path" "$ws" "$v" codex DIR
 mkdir "$base/subrepo"
 git -C "$base/subrepo" init -q
 git -C "$base/subrepo" config user.name Test
@@ -151,10 +162,19 @@ git -C "$base/subrepo" commit -qm submodule
 git -C "$ws" -c protocol.file.allow=always submodule add "$base/subrepo" SUBMODULE >/dev/null
 git -C "$ws" commit -qm 'gitlink fixture'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
-refused "submodule path" "the reviewed file is not a committed regular file" \
+refused "submodule path" "the file is not a committed regular file at an accepted relative path" \
   "$ws" "$v" codex SUBMODULE
-refused "untracked meta" "the meta file is not a committed regular file" \
+refused "untracked meta" "the meta file is not a committed regular file at an accepted relative path" \
   "$ws" "$v" codex REPLY.txt N.json
+refused "empty meta path" "the meta path is empty" "$ws" "$v" codex REPLY.txt ''
+refused "absolute meta path" "the meta file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex REPLY.txt "$ws/SEND.json"
+refused "meta trailing slash" "the meta file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex REPLY.txt SEND.json/
+refused "meta dot-dot component" "the meta file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex REPLY.txt DIR/../SEND.json
+refused "meta dot prefix" "the meta file is not a committed regular file at an accepted relative path" \
+  "$ws" "$v" codex REPLY.txt ./SEND.json
 refused "glob meta path" "the meta file is not a JSON object" \
   "$ws" "$v" codex REPLY.txt 'A*.txt'
 refused "list meta" "the meta file is not a JSON object" "$ws" "$v" codex REPLY.txt LIST.json
@@ -241,6 +261,11 @@ python3 - "$dot_meta_record" <<'PY' || fail "repeated-dot meta filename was refu
 import json, sys
 assert json.load(open(sys.argv[1]))["meta"] == {"dotdot": True}
 PY
+nested_dash_record=$(bash "$record" "$ws" "$v" codex DIR/-x)
+python3 - "$nested_dash_record" <<'PY' || fail "later-component dash name was refused"
+import json, sys
+assert json.load(open(sys.argv[1]))["file"] == "DIR/-x"
+PY
 
 # A tracked verdict output is permitted when its mtime is at least the commit timestamp.
 tracked_ws=$(bash "$root/scripts/chat-review-temp.sh" new)
@@ -249,6 +274,12 @@ verdict "$tracked_ws/VERDICT.md" 'CONVERGED — reviewed in the same commit\n'
 git -C "$tracked_ws" add REPLY.txt VERDICT.md
 GIT_AUTHOR_DATE='2000-01-01T00:00:00Z' GIT_COMMITTER_DATE='2000-01-01T00:00:00Z' \
   git -C "$tracked_ws" commit -qm 'tracked verdict fixture'
+# Equality with the commit timestamp is allowed; the test documents “not older”.
+commit_time=$(git -C "$tracked_ws" log -1 --format=%ct HEAD)
+python3 - "$tracked_ws/VERDICT.md" "$commit_time" <<'PY'
+import os, sys
+os.utime(sys.argv[1], (int(sys.argv[2]), int(sys.argv[2])))
+PY
 tracked_record=$(bash "$record" "$tracked_ws" "$tracked_ws/VERDICT.md" codex REPLY.txt)
 [ -f "$tracked_record" ] || fail "tracked verdict output was refused"
 
