@@ -42,8 +42,8 @@ head=$(git -C "$resolved" rev-parse --verify -q HEAD) || refuse "the workspace h
   refuse "the workspace's tracked files differ from the reviewed commit"
 committed() {  # a regular file at HEAD, named by its path from the workspace root
   local row
-  case "$1" in ''|/*|-*|*..*) return 1 ;; esac
-  row=$(git -C "$resolved" ls-tree HEAD -- "$1") || return 1
+  case "$1" in ''|/*|-*|..|../*|*/..|*/../*) return 1 ;; esac
+  row=$(git -C "$resolved" ls-tree HEAD -- ":(literal)$1") || return 1
   [[ $row == 100644\ blob\ * || $row == 100755\ blob\ * ]] && [[ ${row#*$'\t'} == "$1" ]]
 }
 committed "$file" || refuse "the reviewed file is not a committed regular file of the workspace"
@@ -59,7 +59,7 @@ lines=$(tr -d '\r' < "$verdict" | sed -E 's/^[[:space:]>#*_`-]+//; s/[[:space:]]
 if printf '%s\n' "$lines" | grep -Eiq '^NOT CONVERGED([^A-Za-z0-9_]|$)'; then
   refuse "the verdict is NOT CONVERGED"
 fi
-printf '%s\n' "$lines" | grep -Eq '^CONVERGED([[:space:]_*]|$)' ||
+printf '%s\n' "$lines" | grep -Eq '^CONVERGED(\*{1,2}|_{1,2})?([[:space:]]|$)' ||
   refuse "no CONVERGED verdict line"
 
 if command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256); else sum=(sha256sum); fi
@@ -70,10 +70,22 @@ verdict_sha=$("${sum[@]}" < "$verdict" | awk '{print $1}')
 
 [[ -n ${HOME:-} ]] || refuse "HOME is unset"
 dir=$HOME/.local/state/peerreview/chat-converged
-[[ ! -L $dir ]] || refuse "the record folder is a symlink"
-[[ ! -e $dir || -d $dir ]] || refuse "the record folder is not a directory"
+parent=$HOME
+for part in .local state peerreview chat-converged; do
+  parent=$parent/$part
+  [[ ! -L $parent ]] || refuse "a record folder path component is a symlink"
+  [[ ! -e $parent || -d $parent ]] || refuse "a record folder path component is not a directory"
+done
 umask 077
 mkdir -p "$dir"
+parent=$HOME
+for part in .local state peerreview chat-converged; do
+  parent=$parent/$part
+  [[ ! -L $parent ]] || refuse "a record folder path component is a symlink"
+done
+[[ -d $dir ]] || refuse "the record folder is not a directory"
+owner=$(stat -f %u "$dir" 2>/dev/null || stat -c %u "$dir")
+[[ $owner == "$(id -u)" ]] || refuse "the record folder is not owned by this user"
 chmod 700 "$dir"
 out=$dir/$sha-$(date -u +%Y%m%dT%H%M%SZ)-$$.json
 tmp=$(mktemp "$dir/.record.XXXXXX")
@@ -97,6 +109,14 @@ sys.stdout.write("\n")
     rc=$?
     [ "$rc" -eq 65 ] && refuse "the meta file is not a JSON object"
     echo "chat-review-record: could not write the record" >&2; exit 1; }
-mv "$tmp" "$out"
+if ! python3 -c 'import os, sys; os.link(sys.argv[1], sys.argv[2])' \
+  "$tmp" "$out" 2>/dev/null; then
+  if [[ -e $out || -L $out ]]; then
+    refuse "a record already exists at the destination path"
+  fi
+  echo "chat-review-record: could not install the record" >&2
+  exit 1
+fi
+rm "$tmp"
 trap - EXIT
 printf '%s\n' "$out"

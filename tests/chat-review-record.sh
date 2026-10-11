@@ -92,6 +92,8 @@ verdict "$v" 'CONVERGED? maybe\n'
 refused "question verdict" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'CONVERGED: no defects remain\n'
 refused "colon verdict" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
+verdict "$v" 'CONVERGED*not actually a verdict\n'
+refused "asterisk suffix" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'NOT  CONVERGED — still has a finding\nCONVERGED — after a future fix\n'
 refused "double-spaced not converged" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'Not converged — findings remain\nCONVERGED — after a future fix\n'
@@ -115,16 +117,19 @@ refused "untracked file" "the reviewed file is not a committed regular file" \
   "$ws" "$v" codex NONE.txt
 refused "linked file" "the reviewed file is not a committed regular file" "$ws" "$v" codex LINK.txt
 refused "path escape" "the reviewed file is not a committed regular file" "$ws" "$v" codex ../x
+refused "dot-dot component" "the reviewed file is not a committed regular file" \
+  "$ws" "$v" codex dir/../REPLY.txt
 refused "absolute file" "the reviewed file is not a committed regular file" \
   "$ws" "$v" codex "$ws/REPLY.txt"
 printf 'x\n' > "$ws/-dash.txt"
 printf 'x\n' > "$ws/A*.txt"
-printf 'x\n' > "$ws/two..dots.txt"
+printf 'x\n' > "$ws/AB.txt"
+printf '{"dotdot": true}\n' > "$ws/two..dots.txt"
 printf 'x\n' > "$ws/"$'line\nbreak.txt'
-git -C "$ws" add -- -dash.txt 'A*.txt' two..dots.txt $'line\nbreak.txt'
+git -C "$ws" add -- -dash.txt 'A*.txt' AB.txt two..dots.txt $'line\nbreak.txt'
 git -C "$ws" commit -qm 'odd path fixtures'
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
-for odd_path in -dash.txt two..dots.txt $'line\nbreak.txt'; do
+for odd_path in -dash.txt $'line\nbreak.txt'; do
   refused "special file path $odd_path" "the reviewed file is not a committed regular file" \
     "$ws" "$v" codex "$odd_path"
   refused "special meta path $odd_path" "the meta file is not a committed regular file" \
@@ -175,27 +180,67 @@ case "$home_err" in *"refused, no record written: HOME is unset"*) ;; *) fail "u
 mkdir -p "$(dirname "$records")" "$base/real-records"
 mv "$records" "$base/records-backup"
 ln -s "$base/real-records" "$records"
-refused "record folder symlink" "the record folder is a symlink" "$ws" "$v" codex REPLY.txt
+refused "record folder symlink" "a record folder path component is a symlink" \
+  "$ws" "$v" codex REPLY.txt
 rm "$records"
 mv "$base/records-backup" "$records"
 mv "$records" "$base/records-backup"
 : > "$records"
-refused "record folder file" "the record folder is not a directory" "$ws" "$v" codex REPLY.txt
+refused "record folder file" "a record folder path component is not a directory" \
+  "$ws" "$v" codex REPLY.txt
 rm "$records"
 mv "$base/records-backup" "$records"
+parent_path=$HOME/.local/state/peerreview
+mv "$parent_path" "$base/peerreview-backup"
+ln -s "$base/peerreview-backup" "$parent_path"
+refused "symlinked record parent" "a record folder path component is a symlink" \
+  "$ws" "$v" codex REPLY.txt
+rm "$parent_path"
+mv "$base/peerreview-backup" "$parent_path"
+real_stat=$(command -v stat)
+mkdir "$base/mockbin"
+cat > "$base/mockbin/stat" <<'SH'
+#!/bin/sh
+case "$*" in
+  *%u*) echo 99999 ;;
+  *) exec "$REAL_STAT" "$@" ;;
+esac
+SH
+chmod +x "$base/mockbin/stat"
+chmod 755 "$records"
+rc=0
+owner_err=$(REAL_STAT="$real_stat" PATH="$base/mockbin:$PATH" bash "$record" \
+  "$ws" "$v" codex REPLY.txt 2>&1 >/dev/null) || rc=$?
+[ "$rc" -eq 65 ] || fail "foreign-owned record folder: rc=$rc"
+case "$owner_err" in *"refused, no record written: the record folder is not owned by this user"*) ;; *) fail "foreign-owned record folder: $owner_err" ;; esac
+record_mode=$(python3 -c 'import os, stat, sys; print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode))[2:])' "$records")
+[ "$record_mode" = 755 ] || \
+  fail "foreign-owned record folder permissions changed"
+chmod 700 "$records"
 rc=0; bash "$record" "$ws" "$v" codex >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 64 ] || fail "usage: rc=$rc"
 [ "$(count)" = 2 ] || fail "a refusal wrote a record"
 # the last refusal cleared, the same call passes again: the refusals above were not a broken fixture
 bash "$record" "$ws" "$v" codex REPLY.txt SEND.json >/dev/null || fail "final pass"
 [ "$(count)" = 3 ] || fail "expected 3 records"
-# A glob character is a literal path here: Git's matching row must equal the requested path.
+# Glob and repeated dots are valid literal filename characters here; the exact Git path must match.
 glob_record=$(bash "$record" "$ws" "$v" codex 'A*.txt')
 python3 - "$glob_record" <<'PY' || fail "glob path was not treated literally"
 import json, sys
 assert json.load(open(sys.argv[1]))["file"] == "A*.txt"
 PY
 [ "$(count)" = 4 ] || fail "glob path record missing"
+dot_record=$(bash "$record" "$ws" "$v" codex two..dots.txt)
+python3 - "$dot_record" <<'PY' || fail "repeated-dot filename was refused"
+import json, sys
+assert json.load(open(sys.argv[1]))["file"] == "two..dots.txt"
+PY
+[ "$(count)" = 5 ] || fail "repeated-dot filename record missing"
+dot_meta_record=$(bash "$record" "$ws" "$v" codex REPLY.txt two..dots.txt)
+python3 - "$dot_meta_record" <<'PY' || fail "repeated-dot meta filename was refused"
+import json, sys
+assert json.load(open(sys.argv[1]))["meta"] == {"dotdot": True}
+PY
 
 # A tracked verdict output is permitted when its mtime is at least the commit timestamp.
 tracked_ws=$(bash "$root/scripts/chat-review-temp.sh" new)
@@ -225,5 +270,26 @@ rec = json.load(open(sys.argv[1]))
 assert rec["verdict_sha256"] == hashlib.sha256(open(sys.argv[2], "rb").read()).hexdigest()
 assert rec["sha256"] == hashlib.sha256(b"old reviewed bytes\nnew unreviewed bytes\n").hexdigest()
 PY
+
+# Plant the exact destination name for the recorder's PID and fixed UTC timestamp.
+mkdir "$base/fixed-date"
+cat > "$base/fixed-date/date" <<'SH'
+#!/bin/sh
+printf '20000101T000000Z\n'
+SH
+chmod +x "$base/fixed-date/date"
+collision_rc=0
+collision_err=$(PATH="$base/fixed-date:$PATH" bash -c '
+set -eu
+ws=$1 verdict=$2 record=$3 records=$4
+sha=$(git -C "$ws" cat-file blob HEAD:REPLY.txt | shasum -a 256 | awk "{print \$1}")
+target=$records/$sha-20000101T000000Z-$$.json
+printf sentinel > "$target"
+exec bash "$record" "$ws" "$verdict" codex REPLY.txt
+' _ "$ws" "$v" "$record" "$records" 2>&1) || collision_rc=$?
+[ "$collision_rc" -eq 65 ] || fail "destination collision rc=$collision_rc"
+case "$collision_err" in *"record already exists at the destination path"*) ;; *) fail "destination collision: $collision_err" ;; esac
+case "$(cat "$records"/*20000101T000000Z-*.json)" in sentinel) ;; *) fail "existing collision record was replaced" ;; esac
+ls "$records"/.record.* >/dev/null 2>&1 && fail "destination refusal left a temp record"
 
 printf 'PASS: chat review record\n'
