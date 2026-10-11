@@ -142,6 +142,18 @@ injection (`python -P`), warn the PEER of the same trap. (vvah-v1.3.0 2026-09-07
 git there drove every reversal; a gate run beside a same-named package imported the reviewer's
 already-fixed fork, reporting the defect absent.)
 
+**Record for a tool that acts on the reviewed file** (user decision, one-brim-autotest 2026-10-11:
+a reviewed chat reply is sent without a per-send confirmation). Only when the instruction says a
+tool will act on the result: commit that file (the exact bytes, e.g. `REPLY.txt`) and any small
+JSON object the tool reads (e.g. `SEND.json`: the chat, the message answered) beside `ARTIFACT.md`
+so the PEER reviews them, and after the PEER's `CONVERGED` verdict, before cleanup, run `bash
+~/personal/peerreview-skills/scripts/chat-review-record.sh "$CHAT_WORKSPACE" <verdict-out> <peer>
+<file> [<meta.json>]`. It refuses without a CONVERGED verdict newer than the reviewed commit and
+writes one record (the committed file's SHA-256, peer, time, meta) under
+`~/.local/state/peerreview/chat-converged/`; report its path. Never write a record by hand, on
+NOT CONVERGED, on verdict-pending, or for a file the PEER did not see; the workspace is still
+cleaned and nothing else outlives it.
+
 ## Required-peer failure (fail closed)
 
 A cross-vendor PEER from the Step 0.0 ladder is mandatory. If `select-peer.sh` resolves none —
