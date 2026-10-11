@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
 # Record one CONVERGED chat review so a tool can act on the reviewed file after the
 # ephemeral workspace is gone (a reviewed message sent without a per-send confirmation).
+# The verdict is bound only by its mtime being at least the commit time: refreshing or
+# hand-writing its text defeats that check. Records evidence a review only when the skill ran.
+# The peer name is what the HOST passes; it is not independently authenticated here.
 # Run by the HOST right after the PEER's verdict and before `chat-review-temp.sh clean`.
 # Usage: chat-review-record.sh <chat_workspace> <verdict_out> <peer> <file> [<meta_json>]
 #   <verdict_out>  the file the round driver wrote for the --verdict round
 #   <peer>         the PEER that returned it, as select-peer.sh named it (codex, claude, pi, dsh)
 #   <file>         the reviewed file, committed in the workspace; its committed bytes are hashed
 #   <meta_json>    optional committed JSON object the consuming tool reads (e.g. the chat)
+# A consumer decides whether the optional meta object has the fields it needs.
 # It refuses (and writes nothing) unless the workspace is one chat-review-temp.sh made, its
 # tracked tree is clean, <file> and <meta_json> are committed regular files, and
 # <verdict_out> is newer than the reviewed commit and holds a CONVERGED verdict line and no
 # NOT CONVERGED line. It prints the record's path:
 #   ~/.local/state/peerreview/chat-converged/<sha256>-<utc time>-<pid>.json
-#   {"v":1,"sha256":…,"file":…,"verdict":"CONVERGED","peer":…,"time":…,"head":…,"meta":{…}}
+#   {"v":1,"sha256":…,"verdict_sha256":…,"file":…,"verdict":"CONVERGED","peer":…,
+#    "time":…,"head":…,"meta":{…}}
 # Exit 64 usage, 65 a refused input, 1 anything else.
 set -euo pipefail
 
@@ -49,19 +54,24 @@ commit_time=$(git -C "$resolved" log -1 --format=%ct HEAD)
 verdict_time=$(stat -f %m "$verdict" 2>/dev/null || stat -c %Y "$verdict")
 [ "$verdict_time" -ge "$commit_time" ] ||
   refuse "the verdict output is older than the reviewed commit"
-# A verdict line starts with the word, after markdown emphasis, a quote mark or a heading mark.
-lines=$(sed -E 's/^[[:space:]>#*_`-]+//' "$verdict")
-if printf '%s\n' "$lines" | grep -Eq '^NOT CONVERGED([^A-Za-z0-9_]|$)'; then
+# A verdict line starts with its exact verdict token (optionally Markdown-wrapped).
+lines=$(tr -d '\r' < "$verdict" | sed -E 's/^[[:space:]>#*_`-]+//; s/[[:space:]]+/ /g')
+if printf '%s\n' "$lines" | grep -Eiq '^NOT CONVERGED([^A-Za-z0-9_]|$)'; then
   refuse "the verdict is NOT CONVERGED"
 fi
-printf '%s\n' "$lines" | grep -Eq '^CONVERGED([^A-Za-z0-9_]|$)' ||
+printf '%s\n' "$lines" | grep -Eq '^CONVERGED([[:space:]_*]|$)' ||
   refuse "no CONVERGED verdict line"
 
 if command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256); else sum=(sha256sum); fi
 sha=$(git -C "$resolved" cat-file blob "HEAD:$file" | "${sum[@]}" | awk '{print $1}')
 [[ $sha =~ ^[0-9a-f]{64}$ ]] || { echo "chat-review-record: could not hash the file" >&2; exit 1; }
+verdict_sha=$("${sum[@]}" < "$verdict" | awk '{print $1}')
+[[ $verdict_sha =~ ^[0-9a-f]{64}$ ]] || { echo "chat-review-record: could not hash the verdict" >&2; exit 1; }
 
+[[ -n ${HOME:-} ]] || refuse "HOME is unset"
 dir=$HOME/.local/state/peerreview/chat-converged
+[[ ! -L $dir ]] || refuse "the record folder is a symlink"
+[[ ! -e $dir || -d $dir ]] || refuse "the record folder is not a directory"
 umask 077
 mkdir -p "$dir"
 chmod 700 "$dir"
@@ -71,7 +81,7 @@ trap 'rm -f "$tmp"' EXIT
 if [ -n "$meta" ]; then git -C "$resolved" cat-file blob "HEAD:$meta"; else printf '{}'; fi |
   python3 -c '
 import datetime, json, sys
-sha, name, peer, head = sys.argv[1:5]
+sha, verdict_sha, name, peer, head = sys.argv[1:6]
 try:
     meta = json.load(sys.stdin)
 except ValueError:
@@ -79,10 +89,11 @@ except ValueError:
 if not isinstance(meta, dict):
     sys.exit(65)
 now = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-json.dump({"v": 1, "sha256": sha, "file": name, "verdict": "CONVERGED", "peer": peer,
-           "time": now, "head": head, "meta": meta}, sys.stdout, ensure_ascii=False)
+json.dump({"v": 1, "sha256": sha, "verdict_sha256": verdict_sha, "file": name,
+           "verdict": "CONVERGED", "peer": peer, "time": now, "head": head,
+           "meta": meta}, sys.stdout, ensure_ascii=False)
 sys.stdout.write("\n")
-' "$sha" "$file" "$peer" "$head" > "$tmp" || {
+' "$sha" "$verdict_sha" "$file" "$peer" "$head" > "$tmp" || {
     rc=$?
     [ "$rc" -eq 65 ] && refuse "the meta file is not a JSON object"
     echo "chat-review-record: could not write the record" >&2; exit 1; }

@@ -149,10 +149,14 @@ JSON object the tool reads (e.g. `SEND.json`: the chat, the message answered) be
 so the PEER reviews them, and after the PEER's `CONVERGED` verdict, before cleanup, run `bash
 ~/personal/peerreview-skills/scripts/chat-review-record.sh "$CHAT_WORKSPACE" <verdict-out> <peer>
 <file> [<meta.json>]`. It refuses without a CONVERGED verdict newer than the reviewed commit and
-writes one record (the committed file's SHA-256, peer, time, meta) under
+writes one record (the committed file's SHA-256, verdict-file SHA-256, peer, time, meta) under
 `~/.local/state/peerreview/chat-converged/`; report its path. Never write a record by hand, on
 NOT CONVERGED, on verdict-pending, or for a file the PEER did not see; the workspace is still
-cleaned and nothing else outlives it.
+cleaned and nothing else outlives it. The verdict is bound to the commit only by its file mtime
+being no earlier than the commit time; refreshing or hand-writing that file defeats the check, so
+the record is evidence only when review ran through this skill, and the peer is the name the HOST
+passes. The optional meta object is generic: each consumer decides which fields it needs, and may
+refuse a record without them.
 
 ## Required-peer failure (fail closed)
 

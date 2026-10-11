@@ -44,27 +44,40 @@ verdict "$v" 'No findings.\n\nCONVERGED — no substantive defects remain\n'
 # pass, with a meta file
 out=$(bash "$record" "$ws" "$v" codex REPLY.txt SEND.json)
 case "$out" in "$records"/*.json) ;; *) fail "record path: $out" ;; esac
-want_sha=$(shasum -a 256 "$ws/REPLY.txt" | awk '{print $1}')
-python3 - "$out" "$want_sha" "$(git -C "$ws" rev-parse HEAD)" <<'PY' || fail "record content"
+want_sha=$(git -C "$ws" cat-file blob "HEAD:REPLY.txt" | shasum -a 256 | awk '{print $1}')
+want_verdict_sha=$(shasum -a 256 < "$v" | awk '{print $1}')
+python3 - "$out" "$want_sha" "$(git -C "$ws" rev-parse HEAD)" "$want_verdict_sha" <<'PY' || fail "record content"
 import datetime, json, os, stat, sys
-path, sha, head = sys.argv[1:4]
+path, sha, head, verdict_sha = sys.argv[1:5]
 rec = json.load(open(path, encoding="utf-8"))
 t = datetime.datetime.fromisoformat(rec.pop("time"))
 assert t.tzinfo is not None and abs((datetime.datetime.now(t.tzinfo) - t).total_seconds()) < 120, t
-assert rec == {"v": 1, "sha256": sha, "file": "REPLY.txt", "verdict": "CONVERGED", "peer": "codex",
+assert rec == {"v": 1, "sha256": sha, "verdict_sha256": verdict_sha, "file": "REPLY.txt", "verdict": "CONVERGED", "peer": "codex",
                "head": head, "meta": {"chat": "Group One",
                                       "answers": "wx#2@Group-One/2026-10-11-070000-new.md"}}, rec
 assert os.path.basename(path).startswith(sha + "-"), path
 assert stat.S_IMODE(os.stat(path).st_mode) == 0o600, oct(os.stat(path).st_mode)
 assert stat.S_IMODE(os.stat(os.path.dirname(path)).st_mode) == 0o700
 PY
-# pass, without a meta file: an empty meta object; markdown around the verdict word is accepted
+# A no-meta pass proves the generic record has `meta: {}`; whether a consumer accepts it is that
+# consumer's rule. Markdown decoration and CRLF are supported in verdict output.
 verdict "$v" '## Verdict\n\n**CONVERGED** — no substantive defects remain\n'
+python3 - "$v" <<'PY'
+import sys
+p = sys.argv[1]
+with open(p, "rb") as f:
+    data = f.read()
+with open(p, "wb") as f:
+    f.write(data.replace(b"\n", b"\r\n"))
+PY
 out2=$(bash "$record" "$ws" "$v" pi REPLY.txt)
 [ "$out2" != "$out" ] || fail "a second record replaced the first"
 python3 -c 'import json, sys
 r = json.load(open(sys.argv[1]))
-assert r["meta"] == {} and r["peer"] == "pi", r' "$out2" || fail "record without meta"
+import hashlib
+assert r["meta"] == {} and r["peer"] == "pi", r
+assert r["verdict_sha256"] == hashlib.sha256(open(sys.argv[2], "rb").read()).hexdigest(), r' \
+  "$out2" "$v" || fail "record without meta"
 [ "$(count)" = 2 ] || fail "expected 2 records, found $(count)"
 ls "$records"/.record.* >/dev/null 2>&1 && fail "a temp record file was left behind"
 
@@ -75,6 +88,16 @@ verdict "$v" 'Earlier: CONVERGED\n\n> **NOT CONVERGED** — round 2 needed\nCONV
 refused "both words" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'The draft has CONVERGED in my view.\nCONVERGEDLY\n'
 refused "no verdict line" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
+verdict "$v" 'CONVERGED? maybe\n'
+refused "question verdict" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
+verdict "$v" 'CONVERGED: no defects remain\n'
+refused "colon verdict" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
+verdict "$v" 'NOT  CONVERGED — still has a finding\nCONVERGED — after a future fix\n'
+refused "double-spaced not converged" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
+verdict "$v" 'Not converged — findings remain\nCONVERGED — after a future fix\n'
+refused "lowercase not converged" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
+verdict "$v" '> **NOT CONVERGED** — finding remains\n> CONVERGED — quoted text\n'
+refused "quoted converged in not report" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
 : > "$v"
 refused "empty verdict" "no CONVERGED verdict line" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'CONVERGED — no substantive defects remain\n'
@@ -94,10 +117,44 @@ refused "linked file" "the reviewed file is not a committed regular file" "$ws" 
 refused "path escape" "the reviewed file is not a committed regular file" "$ws" "$v" codex ../x
 refused "absolute file" "the reviewed file is not a committed regular file" \
   "$ws" "$v" codex "$ws/REPLY.txt"
+printf 'x\n' > "$ws/-dash.txt"
+printf 'x\n' > "$ws/A*.txt"
+printf 'x\n' > "$ws/two..dots.txt"
+printf 'x\n' > "$ws/"$'line\nbreak.txt'
+git -C "$ws" add -- -dash.txt 'A*.txt' two..dots.txt $'line\nbreak.txt'
+git -C "$ws" commit -qm 'odd path fixtures'
+verdict "$v" 'CONVERGED — no substantive defects remain\n'
+for odd_path in -dash.txt two..dots.txt $'line\nbreak.txt'; do
+  refused "special file path $odd_path" "the reviewed file is not a committed regular file" \
+    "$ws" "$v" codex "$odd_path"
+  refused "special meta path $odd_path" "the meta file is not a committed regular file" \
+    "$ws" "$v" codex REPLY.txt "$odd_path"
+done
+mkdir -p "$ws/DIR"
+printf 'x\n' > "$ws/DIR/inside.txt"
+git -C "$ws" add DIR
+git -C "$ws" commit -qm 'tree and gitlink fixtures'
+verdict "$v" 'CONVERGED — no substantive defects remain\n'
+refused "tree path" "the reviewed file is not a committed regular file" "$ws" "$v" codex DIR
+mkdir "$base/subrepo"
+git -C "$base/subrepo" init -q
+git -C "$base/subrepo" config user.name Test
+git -C "$base/subrepo" config user.email test@example.invalid
+printf 'submodule\n' > "$base/subrepo/file"
+git -C "$base/subrepo" add file
+git -C "$base/subrepo" commit -qm submodule
+git -C "$ws" -c protocol.file.allow=always submodule add "$base/subrepo" SUBMODULE >/dev/null
+git -C "$ws" commit -qm 'gitlink fixture'
+verdict "$v" 'CONVERGED — no substantive defects remain\n'
+refused "submodule path" "the reviewed file is not a committed regular file" \
+  "$ws" "$v" codex SUBMODULE
 refused "untracked meta" "the meta file is not a committed regular file" \
   "$ws" "$v" codex REPLY.txt N.json
+refused "glob meta path" "the meta file is not a JSON object" \
+  "$ws" "$v" codex REPLY.txt 'A*.txt'
 refused "list meta" "the meta file is not a JSON object" "$ws" "$v" codex REPLY.txt LIST.json
 refused "broken meta" "the meta file is not a JSON object" "$ws" "$v" codex REPLY.txt BROKEN.json
+ls "$records"/.record.* >/dev/null 2>&1 && fail "invalid meta left a temp record"
 printf 'P.S.\n' >> "$ws/REPLY.txt"
 refused "edited after the review" "the workspace's tracked files differ" "$ws" "$v" codex REPLY.txt
 git -C "$ws" checkout -q -- REPLY.txt
@@ -112,11 +169,61 @@ refused "missing workspace" "no such chat-review workspace" \
   "$base/tmp/peerreview-chat.none" "$v" codex R
 empty=$(bash "$root/scripts/chat-review-temp.sh" new)
 refused "no commit" "the workspace has no commit" "$empty" "$v" codex REPLY.txt
+rc=0; home_err=$(env -u HOME bash "$record" "$ws" "$v" codex REPLY.txt 2>&1 >/dev/null) || rc=$?
+[ "$rc" -eq 65 ] || fail "unset HOME: rc=$rc"
+case "$home_err" in *"refused, no record written: HOME is unset"*) ;; *) fail "unset HOME: $home_err" ;; esac
+mkdir -p "$(dirname "$records")" "$base/real-records"
+mv "$records" "$base/records-backup"
+ln -s "$base/real-records" "$records"
+refused "record folder symlink" "the record folder is a symlink" "$ws" "$v" codex REPLY.txt
+rm "$records"
+mv "$base/records-backup" "$records"
+mv "$records" "$base/records-backup"
+: > "$records"
+refused "record folder file" "the record folder is not a directory" "$ws" "$v" codex REPLY.txt
+rm "$records"
+mv "$base/records-backup" "$records"
 rc=0; bash "$record" "$ws" "$v" codex >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 64 ] || fail "usage: rc=$rc"
 [ "$(count)" = 2 ] || fail "a refusal wrote a record"
 # the last refusal cleared, the same call passes again: the refusals above were not a broken fixture
 bash "$record" "$ws" "$v" codex REPLY.txt SEND.json >/dev/null || fail "final pass"
 [ "$(count)" = 3 ] || fail "expected 3 records"
+# A glob character is a literal path here: Git's matching row must equal the requested path.
+glob_record=$(bash "$record" "$ws" "$v" codex 'A*.txt')
+python3 - "$glob_record" <<'PY' || fail "glob path was not treated literally"
+import json, sys
+assert json.load(open(sys.argv[1]))["file"] == "A*.txt"
+PY
+[ "$(count)" = 4 ] || fail "glob path record missing"
+
+# A tracked verdict output is permitted when its mtime is at least the commit timestamp.
+tracked_ws=$(bash "$root/scripts/chat-review-temp.sh" new)
+printf 'reply\n' > "$tracked_ws/REPLY.txt"
+verdict "$tracked_ws/VERDICT.md" 'CONVERGED — reviewed in the same commit\n'
+git -C "$tracked_ws" add REPLY.txt VERDICT.md
+GIT_AUTHOR_DATE='2000-01-01T00:00:00Z' GIT_COMMITTER_DATE='2000-01-01T00:00:00Z' \
+  git -C "$tracked_ws" commit -qm 'tracked verdict fixture'
+tracked_record=$(bash "$record" "$tracked_ws" "$tracked_ws/VERDICT.md" codex REPLY.txt)
+[ -f "$tracked_record" ] || fail "tracked verdict output was refused"
+
+# Pin the limit: after a later commit, refreshing an old verdict mtime still authorizes the new bytes.
+stale_ws=$(bash "$root/scripts/chat-review-temp.sh" new)
+printf 'old reviewed bytes\n' > "$stale_ws/REPLY.txt"
+git -C "$stale_ws" add REPLY.txt
+GIT_AUTHOR_DATE='2000-01-01T00:00:00Z' GIT_COMMITTER_DATE='2000-01-01T00:00:00Z' \
+  git -C "$stale_ws" commit -qm reviewed
+verdict "$base/stale-verdict" 'CONVERGED — old review\n'
+printf 'new unreviewed bytes\n' >> "$stale_ws/REPLY.txt"
+git -C "$stale_ws" add REPLY.txt
+git -C "$stale_ws" commit -qm unreviewed
+touch "$base/stale-verdict"
+stale_record=$(bash "$record" "$stale_ws" "$base/stale-verdict" codex REPLY.txt)
+python3 - "$stale_record" "$base/stale-verdict" <<'PY' || fail "refreshed stale verdict behavior"
+import hashlib, json, sys
+rec = json.load(open(sys.argv[1]))
+assert rec["verdict_sha256"] == hashlib.sha256(open(sys.argv[2], "rb").read()).hexdigest()
+assert rec["sha256"] == hashlib.sha256(b"old reviewed bytes\nnew unreviewed bytes\n").hexdigest()
+PY
 
 printf 'PASS: chat review record\n'
