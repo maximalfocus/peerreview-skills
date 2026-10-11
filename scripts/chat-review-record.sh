@@ -27,7 +27,10 @@
 set -euo pipefail
 
 refuse() { printf 'chat-review-record: refused, no record written: %s\n' "$1" >&2; exit 65; }
-[ "$#" -eq 4 ] || [ "$#" -eq 5 ] || { sed -n '5p' "$0" | cut -c3- >&2; exit 64; }
+[ "$#" -eq 4 ] || [ "$#" -eq 5 ] || {
+  sed -n '/^# Usage: /s/^# //p' "$0" >&2
+  exit 64
+}
 ws=$1 verdict=$2 peer=$3 file=$4 meta=
 if [ "$#" -eq 5 ]; then
   meta=$5

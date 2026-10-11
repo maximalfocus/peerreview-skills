@@ -237,8 +237,11 @@ record_mode=$(python3 -c 'import os, stat, sys; print(oct(stat.S_IMODE(os.stat(s
 [ "$record_mode" = 755 ] || \
   fail "foreign-owned record folder permissions changed"
 chmod 700 "$records"
-rc=0; bash "$record" "$ws" "$v" codex >/dev/null 2>&1 || rc=$?
+rc=0
+usage_err=$(bash "$record" "$ws" "$v" codex 2>&1 >/dev/null) || rc=$?
 [ "$rc" -eq 64 ] || fail "usage: rc=$rc"
+expected_usage='Usage: chat-review-record.sh <chat_workspace> <verdict_out> <peer> <file> [<meta_json>]'
+[ "$usage_err" = "$expected_usage" ] || fail "usage text: [$usage_err]"
 [ "$(count)" = 2 ] || fail "a refusal wrote a record"
 # the last refusal cleared, the same call passes again: the refusals above were not a broken fixture
 bash "$record" "$ws" "$v" codex REPLY.txt SEND.json >/dev/null || fail "final pass"
