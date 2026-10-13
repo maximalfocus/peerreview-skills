@@ -99,7 +99,11 @@ review is never a substitute.
    schema in `~/personal/peerreview-skills/templates/PROBLEM.md`, but create `PROBLEM.md` in a
    private temp directory with `bash
    ~/personal/peerreview-skills/scripts/charter-temp.sh new`; retain the returned path as
-   `ACTIVE_CHARTER`. Derive intent in this order: current explicit user instruction → declared
+   `ACTIVE_CHARTER`. That directory is the review's own place: keep round prompts, outputs and
+   gate files beside the charter and PEER evidence in a subfolder mounted alone; `clean` removes
+   it whole, so never add an `rm` of your own (one-brim-autotest 2026-10-13: two close-outs sat
+   on a guard prompt at an `rm -rf` of a substituted path after `clean` failed on a non-empty
+   folder). Derive intent in this order: current explicit user instruction → declared
    upstream source → PRD/PLAN/spec → tests/docs. Implementation behavior is evidence, never intent
    by itself. A pre-existing repo-root `PROBLEM.md` is another durable input: do not edit or delete
    it. When sources are coherent, synthesize Scope, ACs, gate, and residuals and **continue without
