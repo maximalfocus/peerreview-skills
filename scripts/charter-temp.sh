@@ -17,7 +17,11 @@ refuse() {
 }
 
 owner_of() {
-  stat -f %u "$1" 2>/dev/null || stat -c %u "$1" 2>/dev/null
+  case $1 in -*) set -- "./$1" ;; esac
+  case $(uname -s) in
+    Darwin) stat -f %u "$1" 2>/dev/null ;;
+    *) stat -c %u "$1" 2>/dev/null ;;
+  esac
 }
 
 case "${1:-}" in
@@ -39,7 +43,12 @@ case "${1:-}" in
     [[ -d $dir && ! -L $dir && -f $marker && ! -L $marker ]] || refuse "$path"
     me=$(id -u)
     [[ $(owner_of "$dir") == "$me" && $(owner_of "$marker") == "$me" ]] || refuse "$path"
-    real=$(cd "$dir" && pwd -P)
+    real=$(cd -- "$dir" 2>/dev/null && pwd -P) || refuse "$path"
+    root_path=${root:-/}
+    root_real=$(cd -- "$root_path" 2>/dev/null && pwd -P) || refuse "$path"
+    parent=${real%/*}
+    [[ -n $parent ]] || parent=/
+    [[ $parent == "$root_real" ]] || refuse "$path"
     [[ ${real##*/} == "${dir##*/}" ]] || refuse "$path"
     rm -rf -- "$real"
     [[ ! -e $real ]] || { echo "the charter folder could not be removed: $path" >&2; exit 1; }
