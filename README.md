@@ -63,6 +63,7 @@ peerreview-skills/
 ├── scripts/validate-knowledge-artifacts.py ← deterministic knowledge-repo checks
 ├── tests/round-drivers.sh              ← peer routing, driver, and guard smoke tests
 ├── tests/width.sh                      ← width.sh check/fix behaviour
+├── tests/charter-temp.sh               ← the charter folder's clean path and every refusal
 ├── tests/chat-review-record.sh         ← the record's pass path and every refusal
 ├── LICENSE                             ← MIT
 └── README.md
