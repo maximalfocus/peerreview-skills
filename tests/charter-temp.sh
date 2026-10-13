@@ -20,6 +20,15 @@ run_foreign_owner() {
     >/dev/null 2>"$tmp/err"
   echo $?
 }
+run_at_root() {
+  TMPDIR="$1" bash "$script" clean "$2" >/dev/null 2>"$tmp/err"
+  echo $?
+}
+run_swapped_marker() {
+  SWAP_TARGET="$1" SWAP_COUNT="$tmp/swap-count" \
+    PATH="$tmp/swapbin:$PATH" bash "$script" clean "$2" >/dev/null 2>"$tmp/err"
+  echo $?
+}
 run_failing_rm() {
   PATH="$tmp/failbin:$PATH" bash "$script" clean "$1" >/dev/null 2>"$tmp/err"
   echo $?
@@ -129,10 +138,12 @@ refused "same-name symlink to a folder" \
   "$tmp/t/peerreview-charter.same/PROBLEM.md" \
   "$tmp/external/peerreview-charter.same/PROBLEM.md"
 refused "root PROBLEM.md" "/PROBLEM.md" "$d/PROBLEM.md"
-mkdir -p "$tmp/outside/peerreview-charter.lookalike"
-f="$tmp/outside/peerreview-charter.lookalike"
-: > "$f/PROBLEM.md"; : > "$f/.peerreview-owned"
-refused "a marked folder outside TMPDIR" "$f/PROBLEM.md" "$f/PROBLEM.md"
+mkdir "$tmp/old-root" "$tmp/new-root"
+p="$(TMPDIR="$tmp/old-root" bash "$script" new)"; d="${p%/*}"
+check "changed TMPDIR: own folder still cleans" \
+  "$(run_at_root "$tmp/new-root" "$p")" "0"
+check "changed TMPDIR: folder is gone" "$(state "$d")" "gone"
+p="$(bash "$script" new)"; d="${p%/*}"
 refused "trailing slash after PROBLEM.md" "$p/" "$d/PROBLEM.md"
 mkdir "$tmp/cdbin"
 cat > "$tmp/cdbin/stat" <<'EOF'
@@ -162,7 +173,7 @@ p="$(bash "$script" new)"; d="${p%/*}"
 mkdir "$tmp/capbin"
 cat > "$tmp/capbin/rm" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$3" > "$CAPTURED"
+printf '%s/%s\n' "$(pwd -P)" "${3#./}" > "$CAPTURED"
 exec /bin/rm "$@"
 EOF
 chmod +x "$tmp/capbin/rm"
@@ -172,6 +183,28 @@ check "parent symlink: exit 0" \
   "$(run_capture_rm "$tmp/root-link/${d##*/}/PROBLEM.md")" "0"
 check "removal uses the physical path" "$(cat "$tmp/removed-path")" "$physical"
 check "parent symlink target: gone" "$(state "$d")" "gone"
+mkdir "$tmp/swapbin"
+cat > "$tmp/swapbin/stat" <<'EOF'
+#!/usr/bin/env bash
+if [[ ${3##*/} == .peerreview-owned ]]; then
+  count=0; [ -f "$SWAP_COUNT" ] && count=$(cat "$SWAP_COUNT")
+  count=$((count + 1)); echo "$count" > "$SWAP_COUNT"
+  if [ "$count" -eq 2 ]; then
+    mv "$SWAP_TARGET" "$SWAP_TARGET.saved"
+    mkdir "$SWAP_TARGET"
+    : > "$SWAP_TARGET/PROBLEM.md"; : > "$SWAP_TARGET/.peerreview-owned"
+    echo 999
+    exit 0
+  fi
+fi
+command -p stat "$@"
+EOF
+chmod +x "$tmp/swapbin/stat"
+p="$(bash "$script" new)"; d="${p%/*}"
+check "folder replaced before final marker check: refused" \
+  "$(run_swapped_marker "$d" "$p")" "2"
+check "replacement survives final marker check" "$(state "$d/PROBLEM.md")" "there"
+check "original survives under its moved name" "$(state "$d.saved/PROBLEM.md")" "there"
 f="$(make $'peerreview-charter.line\nbreak')"; : > "$f/.peerreview-owned"
 check "newline in folder name: exit 0" "$(run clean "$f/PROBLEM.md")" "0"
 f="$(make 'peerreview-charter.[glob]*')"; : > "$f/.peerreview-owned"
@@ -179,7 +212,7 @@ check "glob characters in folder name: exit 0" "$(run clean "$f/PROBLEM.md")" "0
 mkdir "$tmp/t/-root"
 p="$(TMPDIR="$tmp/t/-root" bash "$script" new)"; d="${p%/*}"
 check "path beginning with dash: exit 0" \
-  "$(cd "$tmp/t" && TMPDIR="$tmp/t/-root" bash "$script" clean \
+  "$(cd "$tmp/t" && bash "$script" clean \
     "-root/${d##*/}/PROBLEM.md" >/dev/null 2>&1; echo $?)" "0"
 check "path beginning with dash: gone" "$(state "$d")" "gone"
 mkdir "$tmp/failbin"
@@ -204,6 +237,36 @@ check "silent failed removal: exit 1" "$(run_successful_noop_rm "$p")" "1"
 check "silent failed removal: reported" \
   "$(cat "$tmp/err")" "the charter folder could not be removed: $p"
 check "silent failed removal: folder remains" "$(state "$d")" "there"
+mkdir "$tmp/swap-parent-root" "$tmp/swap-parent-evil"
+p="$(TMPDIR="$tmp/swap-parent-root" bash "$script" new)"; d="${p%/*}"
+cat > "$tmp/swap-parent-runner" <<'EOF'
+#!/usr/bin/env bash
+cd() {
+  count=0; [ -f "$SWAP_COUNT" ] && count=$(cat "$SWAP_COUNT")
+  count=$((count + 1)); echo "$count" > "$SWAP_COUNT"
+  if [ "$count" -eq 2 ]; then
+    mv "$SWAP_PARENT" "$SWAP_PARENT.saved"
+    mkdir "$SWAP_EVIL/$SWAP_NAME"
+    : > "$SWAP_EVIL/$SWAP_NAME/PROBLEM.md"
+    : > "$SWAP_EVIL/$SWAP_NAME/.peerreview-owned"
+    ln -s "$SWAP_EVIL" "$SWAP_PARENT"
+  fi
+  builtin cd "$@"
+}
+export -f cd
+bash "$SWAP_SCRIPT" clean "$SWAP_PROBLEM" >/dev/null 2>"$SWAP_ERR"
+echo $?
+EOF
+chmod +x "$tmp/swap-parent-runner"
+name="${d##*/}"
+check "swapped resolved parent: refused" \
+  "$(SWAP_COUNT="$tmp/cd-count" SWAP_PARENT="$tmp/swap-parent-root" \
+    SWAP_EVIL="$tmp/swap-parent-evil" SWAP_NAME="$name" SWAP_SCRIPT="$script" \
+    SWAP_PROBLEM="$p" SWAP_ERR="$tmp/err" "$tmp/swap-parent-runner")" "2"
+check "swapped parent target survives" \
+  "$(state "$tmp/swap-parent-evil/$name/PROBLEM.md")" "there"
+check "original survives parent rename" \
+  "$(state "$tmp/swap-parent-root.saved/$name/PROBLEM.md")" "there"
 p="$(bash "$script" new)"; d="${p%/*}"; echo x > "$d/r1.prompt"
 check "after every refusal the real review folder still holds its files" \
   "$(ls -A "$d" | sort | tr '\n' ' ')" ".peerreview-owned PROBLEM.md r1.prompt "

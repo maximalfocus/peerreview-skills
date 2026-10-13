@@ -6,7 +6,8 @@ set -euo pipefail
 # subfolder). `clean` removes that folder with everything in it, and nothing else: it refuses
 # unless the path is the PROBLEM.md of a folder `new` made (its name, its owner marker), that
 # folder is a real directory and not a link, and it and the marker belong to the caller. It
-# removes by the folder's resolved path and never follows a link inside it.
+# removes from its resolved parent and never follows a link inside it. Residual race: a same-user
+# process with write access to the parent can still swap the name between the final check and rm.
 
 root=${TMPDIR:-/tmp}
 root=${root%/}
@@ -44,14 +45,23 @@ case "${1:-}" in
     me=$(id -u)
     [[ $(owner_of "$dir") == "$me" && $(owner_of "$marker") == "$me" ]] || refuse "$path"
     real=$(cd -- "$dir" 2>/dev/null && pwd -P) || refuse "$path"
-    root_path=${root:-/}
-    root_real=$(cd -- "$root_path" 2>/dev/null && pwd -P) || refuse "$path"
+    [[ ${real##*/} == "${dir##*/}" ]] || refuse "$path"
     parent=${real%/*}
     [[ -n $parent ]] || parent=/
-    [[ $parent == "$root_real" ]] || refuse "$path"
-    [[ ${real##*/} == "${dir##*/}" ]] || refuse "$path"
-    rm -rf -- "$real"
-    [[ ! -e $real ]] || { echo "the charter folder could not be removed: $path" >&2; exit 1; }
+    name=${real##*/}
+    (
+      cd -- "$parent" 2>/dev/null || refuse "$path"
+      [[ $(pwd -P) == "$parent" ]] || refuse "$path"
+      [[ -d $name && ! -L $name && -f "$name/.peerreview-owned" &&
+        ! -L "$name/.peerreview-owned" ]] || refuse "$path"
+      [[ $(owner_of "$name") == "$me" &&
+        $(owner_of "$name/.peerreview-owned") == "$me" ]] || refuse "$path"
+      rm -rf -- "./$name"
+      [[ ! -e $name ]] || {
+        echo "the charter folder could not be removed: $path" >&2
+        exit 1
+      }
+    )
     ;;
   *)
     echo "usage: $0 new | clean <temp-PROBLEM.md>" >&2
