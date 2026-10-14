@@ -65,6 +65,7 @@ peerreview-skills/
 ├── tests/width.sh                      ← width.sh check/fix behaviour
 ├── tests/charter-temp.sh               ← the charter folder's clean path and every refusal
 ├── tests/chat-review-record.sh         ← the record's pass path and every refusal
+├── tests/review-anchor.sh              ← `latest` and `create` with 1500 anchors
 ├── LICENSE                             ← MIT
 └── README.md
 ```

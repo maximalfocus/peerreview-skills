@@ -9,9 +9,11 @@ cmd=${1:-}; repo=${2:-}
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || { echo "not a git repo: $repo" >&2; exit 69; }
 
 latest() {
+  # awk reads every row: an early `exit` would SIGPIPE git under pipefail (141) once the output
+  # passes the pipe buffer.
   git -C "$repo" for-each-ref --sort=-refname \
     --format='%(refname:short)%09%(*objectname)' 'refs/tags/peerreview/converged/*' |
-    awk -F '\t' 'NF == 2 && $2 != "" { print $1 "\t" $2; exit }'
+    awk -F '\t' '!seen && NF == 2 && $2 != "" { print $1 "\t" $2; seen = 1 }'
 }
 
 case "$cmd" in
