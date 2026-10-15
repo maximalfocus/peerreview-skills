@@ -112,7 +112,7 @@ subject_preflight() {
   type="${subject%%:*}"; type="${type%%(*}"
   allowed="$(declared_types)"
   if [ -n "$allowed" ]; then
-    printf '%s\n' "$allowed" | grep -qx -- "$type" \
+    printf '%s\n' "$allowed" | grep -x -- "$type" >/dev/null \
       || reject "type '$type' is not one the reviewed repository allows: $(printf '%s' "$allowed" | tr '\n' ' ')"
   elif types_declared; then
     printf 'peerreview: the reviewed repo declares Types: but this parser could not read it; leaving the type unconstrained.\n' >&2
@@ -224,7 +224,7 @@ case "$cmd" in
     remote_info="$(git ls-remote --exit-code --heads "$origin_url" "refs/heads/$delivery")" || remote_status=$?
     if [ "$remote_status" -eq 0 ]; then
       # ls-remote's pattern matches any ref ENDING in it; take the exact ref only.
-      remote_oid="$(printf '%s\n' "$remote_info" | awk -v ref="refs/heads/$delivery" '$2 == ref { print $1; exit }')"
+      remote_oid="$(printf '%s\n' "$remote_info" | awk -v ref="refs/heads/$delivery" '$2 == ref && !found { print $1; found = 1 }')"
       [ -n "$remote_oid" ] || remote_status=2
     fi
     case "$remote_status" in

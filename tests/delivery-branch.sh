@@ -156,6 +156,13 @@ fresh
 printf 'whatever: land the review\n' > "$msg"
 accepts "any type where the reviewed repo declares none" "whatever: land the review"
 
+# An allowed vocabulary can be large; grep must drain it even after finding
+# the matching type, or printf can receive SIGPIPE under pipefail.
+large_vocab="$(python3 -c 'print("Types: " + " ".join(["`feat`"] * 6000))')"
+fresh "$large_vocab"
+printf 'feat: land the review\n' > "$msg"
+accepts "a large declared vocabulary" "feat: land the review"
+
 # A Types: line this parser cannot read is a warning, never a block.
 fresh '# conventions
 
@@ -416,6 +423,12 @@ refuses "a remote with two push URLs" "more than one push URL"
 fresh "$vocab"
 printf 'feat: land the review\n' > "$msg"
 git -C "$repo" push -q origin main:refs/heads/x/refs/heads/evolve/slug
+# Make ls-remote's suffix match exceed a pipe buffer; the exact delivery ref
+# still has to be selected after awk drains the full producer output.
+main_oid="$(git -C "$repo" rev-parse main)"
+for i in $(seq 1 3000); do
+  printf 'create refs/heads/x%04d/refs/heads/evolve/slug %s\n' "$i" "$main_oid"
+done | git --git-dir="$origin" update-ref --stdin
 accepts "a remote ref that merely ends in the delivery name" "feat: land the review"
 
 # A dirty populated submodule hidden by submodule.<name>.ignore=all still

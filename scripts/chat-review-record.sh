@@ -71,10 +71,10 @@ verdict_time=$(stat -f %m "$verdict" 2>/dev/null || stat -c %Y "$verdict")
   refuse "the verdict output is older than the reviewed commit"
 # A verdict line starts with its exact verdict token (optionally Markdown-wrapped).
 lines=$(tr -d '\r' < "$verdict" | sed -E 's/^[[:space:]>#*_`-]+//; s/[[:space:]]+/ /g')
-if printf '%s\n' "$lines" | grep -Eiq '^NOT CONVERGED([^A-Za-z0-9_]|$)'; then
+if printf '%s\n' "$lines" | grep -Ei '^NOT CONVERGED([^A-Za-z0-9_]|$)' >/dev/null; then
   refuse "the verdict is NOT CONVERGED"
 fi
-printf '%s\n' "$lines" | grep -Eq '^CONVERGED(\*{1,2}|_{1,2})?([[:space:]]|$)' ||
+printf '%s\n' "$lines" | grep -E '^CONVERGED(\*{1,2}|_{1,2})?([[:space:]]|$)' >/dev/null ||
   refuse "no CONVERGED verdict line"
 
 if command -v shasum >/dev/null 2>&1; then sum=(shasum -a 256); else sum=(sha256sum); fi

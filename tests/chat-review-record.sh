@@ -41,7 +41,12 @@ refused() {  # label, expected reason, then the script's arguments
 
 ws=$(new_ws)
 v="$base/verdict.md"
-verdict "$v" 'No findings.\n\nCONVERGED — no substantive defects remain\n'
+python3 - "$v" <<'PY'
+import sys
+with open(sys.argv[1], "w") as f:
+    f.write("No findings.\n\nCONVERGED — no substantive defects remain\n")
+    f.write("filler " * 50000)
+PY
 
 # pass, with a meta file
 out=$(bash "$record" "$ws" "$v" codex REPLY.txt SEND.json)
@@ -88,6 +93,13 @@ ls "$records"/.record.* >/dev/null 2>&1 && fail "a temp record file was left beh
 # every refusal writes nothing
 verdict "$v" 'NOT CONVERGED — round 3 needed\n- the reply promises a date\n'
 refused "not converged" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
+python3 - "$v" <<'PY'
+import sys
+with open(sys.argv[1], "w") as f:
+    f.write("NOT CONVERGED — findings remain\n")
+    f.write("filler " * 50000)
+PY
+refused "large not-converged verdict" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'Earlier: CONVERGED\n\n> **NOT CONVERGED** — round 2 needed\nCONVERGED once fixed\n'
 refused "both words" "the verdict is NOT CONVERGED" "$ws" "$v" codex REPLY.txt
 verdict "$v" 'The draft has CONVERGED in my view.\nCONVERGEDLY\n'
