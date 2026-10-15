@@ -11,7 +11,9 @@ git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || { echo "not a git repo: $r
 latest() {
   git -C "$repo" for-each-ref --sort=-refname \
     --format='%(refname:short)%09%(*objectname)' 'refs/tags/peerreview/converged/*' |
-    awk -F '\t' 'NF == 2 && $2 != "" { print $1 "\t" $2; exit }'
+    # Read the whole list and keep its first annotated row: an `exit` here closes the pipe early and
+    # `git for-each-ref` gets SIGPIPE (status 141 under pipefail) once the tag list outgrows the pipe buffer.
+    awk -F '\t' 'NF == 2 && $2 != "" && !found { print $1 "\t" $2; found = 1 }'
 }
 
 case "$cmd" in
