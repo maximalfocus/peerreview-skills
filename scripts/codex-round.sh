@@ -84,6 +84,7 @@ real_git="$(command -v git)"
 
 head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
 fingerprint_before="$(rd_tree_fingerprint)"
+rm -f "$out.head"
 
 rc=0
 if [ "$round" = "--verdict" ]; then
@@ -106,7 +107,7 @@ fi
 [ -s "$partial" ] || { printf 'peerreview: Codex returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }
 mv -f "$partial" "$out"
 
-if [ "$round" = "--verdict" ] && [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
+if [ "$round" = "--verdict" ] && ! rd_verdict_stamp "$out" "$fingerprint_before"; then
   printf 'peerreview: Codex mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
     "$head_before" "$(git rev-parse HEAD 2>/dev/null || printf 'none')" >&2
   exit 70

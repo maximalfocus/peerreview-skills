@@ -49,6 +49,7 @@ task="$preamble"$'\n\n'"$(cat "$prompt_file")"
 
 head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
 fingerprint_before="$(rd_tree_fingerprint)"
+rm -f "$out.head"
 
 # dsh has no permission prompts; put the target-scoped git guard first on PATH so
 # shell git mutations cannot touch the reviewed checkout's git state.
@@ -68,7 +69,7 @@ fi
 
 if [ "$round" = "--verdict" ]; then
   head_after="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
-  if [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
+  if ! rd_verdict_stamp "$out" "$fingerprint_before"; then
     printf 'peerreview: dsh mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
       "$head_before" "$head_after" >&2
     exit 70

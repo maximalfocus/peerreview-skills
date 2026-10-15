@@ -200,6 +200,8 @@ contains "$PI_FAKE_LOG" " -c"
 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" --verdict
 contains "$PI_FAKE_LOG" "--tools read,grep,find,ls"
 not_contains "$PI_FAKE_LOG" "read,write"
+# A verdict that left the tree alone is stamped with the head it judged (review-anchor.sh create).
+contains "$tmp/pi.out.head" "head $(git -C "$tmp/repo" rev-parse HEAD)"
 
 base_head="$(git -C "$tmp/repo" rev-parse HEAD)"
 PI_FAKE_GIT_MUTATE=1 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1
@@ -242,10 +244,17 @@ contains "$CODEX_FAKE_LOG" "-s read-only"
 not_contains "$CODEX_FAKE_LOG" "resume"
 not_contains "$CODEX_FAKE_LOG" "workspace-write"
 contains "$tmp/codex.stdin" "Read-only verdict round"
+contains "$tmp/codex.out.head" "head $(git -C "$tmp/repo" rev-parse HEAD)"
+contains "$tmp/codex.out.head" "fingerprint "
+# A co-edit round on the same output path removes the earlier verdict's stamp.
+"$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1
+[ ! -e "$tmp/codex.out.head" ] || fail "an edit round left an earlier verdict's head stamp"
+"$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict
 # A verdict round that moves the tree fails loud and is left for adjudication.
 rc=0; CODEX_FAKE_TOUCH=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict 2>"$tmp/codex.err" || rc=$?
 [ "$rc" -eq 70 ] || fail "verdict that mutated the tree was not refused with 70 (rc=$rc)"
 contains "$tmp/codex.err" "mutated the repo during a read-only verdict"
+[ ! -e "$tmp/codex.out.head" ] || fail "a verdict that mutated the tree left a head stamp"
 grep -q peer-edit "$tmp/repo/file.txt" || fail "verdict mutation was reverted instead of left for adjudication"
 git -C "$tmp/repo" checkout -q -- file.txt
 # An edit round moving the tree is the normal case and is not refused.

@@ -99,3 +99,15 @@ rd_tree_fingerprint() {
     done
   } | /usr/bin/shasum -a 256 | awk '{print $1}'
 }
+
+# rd_verdict_stamp <out> <fingerprint_before>
+#   After a read-only verdict, write <out>.head: the HEAD and tree fingerprint the
+#   PEER judged. review-anchor.sh create anchors only a verdict whose stamp names
+#   the head it tags, so a verdict cannot carry over to a later commit. Returns 1,
+#   writing nothing, when the tree changed during the round. Drivers remove an
+#   older stamp before the round starts, so a failed round leaves none.
+#   (2026-10-15: anchors were cut twice on heads whose verdict was NOT CONVERGED.)
+rd_verdict_stamp() {
+  [ "$2" = "$(rd_tree_fingerprint)" ] || return 1
+  printf 'head %s\nfingerprint %s\n' "$(git rev-parse HEAD)" "$2" > "$1.head"
+}

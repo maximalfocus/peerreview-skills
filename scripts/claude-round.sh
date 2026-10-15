@@ -82,6 +82,10 @@ guard_dir="$(bash "$script_dir/git-guard.sh" "$(pwd -P)")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
 
+head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
+fingerprint_before="$(rd_tree_fingerprint)"
+rm -f "$out.head"
+
 rc=0
 # shellcheck disable=SC2086
 PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" \
@@ -109,3 +113,9 @@ PY
   printf 'peerreview: Claude returned no report (see %s).\n' "$out.transcript" >&2
   exit 70
 }
+
+if [ "$round" = "--verdict" ] && ! rd_verdict_stamp "$out" "$fingerprint_before"; then
+  printf 'peerreview: Claude mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
+    "$head_before" "$(git rev-parse HEAD 2>/dev/null || printf 'none')" >&2
+  exit 70
+fi
