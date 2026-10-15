@@ -69,7 +69,10 @@ done
 grep -q '^description: >-$' "$tmp/a.md" || { echo "long description must be folded" >&2; exit 1; }
 grep -q '^argument-hint: "\[x\]"$' "$tmp/a.md" || { echo "short front matter keys must be untouched" >&2; exit 1; }
 # heading, table row, and code line are reported, not rewritten
-for want in ":[0-9]+:# Demo" ":[0-9]+:\\| col" ":[0-9]+:echo"; do printf '%s\n' "$out" | grep -E "WIDE: .*$want" >/dev/null || { echo "fix must report remaining hand-work ($want): $out" >&2; exit 1; }; done
+for want in ":[0-9]+:# Demo" ":[0-9]+:\\| col" ":[0-9]+:echo"; do
+  printf '%s\n' "$out" | grep -E "WIDE: .*$want" >/dev/null || {
+    echo "fix must report remaining hand-work ($want): $out" >&2; exit 1; }
+done
 grep -q "^| col | $long |$" "$tmp/a.md" || { echo "table rows must be left alone" >&2; exit 1; }
 grep -q "^echo \"$long\"$" "$tmp/a.md" || { echo "code lines must be left alone" >&2; exit 1; }
 grep -q "^     echo \"indented fence: $long\"$" "$tmp/a.md" || { echo "an indented fence must be left alone" >&2; exit 1; }
