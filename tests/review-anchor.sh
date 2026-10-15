@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# review-anchor.sh: `latest` and `create` must succeed whatever the number of anchor tags. The reader of the tag list
-# stopped after the first row, so `git for-each-ref` got SIGPIPE once its output outgrew the pipe buffer and, under
-# `set -o pipefail`, the script exited 141 (peerreview-skills#38).
+# review-anchor.sh: `latest` and `create` must succeed whatever the number of anchor tags. The
+# reader of the tag list stopped after the first row, so `git for-each-ref` got SIGPIPE once its
+# output outgrew the pipe buffer and, under `set -o pipefail`, the script exited 141
+# (peerreview-skills#38).
 set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${REVIEW_ANCHOR_SCRIPT:-$root/scripts/review-anchor.sh}"
