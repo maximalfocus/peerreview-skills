@@ -20,6 +20,8 @@ out="${3:?last_message_out}"
 round="${4:-1}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Invalidate before auth/prompt preflights, resolving relative outputs as after cd below.
+(cd "$repo_dir" && rm -f -- "$out.head")
 "$script_dir/peer-auth.sh" dsh >/dev/null
 git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: %s is not a git repo.\n' "$repo_dir" >&2; exit 69; }
 [ -f "$prompt_file" ] || { printf 'peerreview: prompt file missing: %s\n' "$prompt_file" >&2; exit 66; }
@@ -49,7 +51,6 @@ task="$preamble"$'\n\n'"$(cat "$prompt_file")"
 
 head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
 fingerprint_before="$(rd_tree_fingerprint)"
-rm -f "$out.head"
 
 # dsh has no permission prompts; put the target-scoped git guard first on PATH so
 # shell git mutations cannot touch the reviewed checkout's git state.

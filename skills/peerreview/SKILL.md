@@ -739,7 +739,7 @@ owns this update because only it knows the terminal review outcome: explicit cro
 verdict-pending, or non-progress abort → `☐ review owed`. Never advance the project's `PLAN.md`
 lifecycle status merely because its repo review finished.
 
-Before the terminal report, always clean review-owned charter state with `bash
+After anchoring (when applicable), before the terminal report, clean review-owned state with `bash
 ~/personal/peerreview-skills/scripts/charter-temp.sh clean "$ACTIVE_CHARTER"` (on convergence,
 required-pair failure, non-progress abort, dry-run, or error). A pre-existing repo-root `PROBLEM.md`
 is not review-owned and is never removed.
@@ -748,7 +748,7 @@ On convergence, land a branch-mode review with `scripts/delivery-branch.sh land 
 <msgfile>` — one squashed commit on delivery branch `evolve/<slug>` whose first non-blank line
 `land` preflights as the N-4 subject; `land` pushes that branch, opens (or reuses) its PR against
 the base branch (title = subject, body = message body), prints the PR URL, and never writes the base
-branch — then create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
+branch. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
 <PR>` on the maintainer's explicit instruction merges it, never this run. The review branch is kept
 locally; its round commits remain the detailed record.
 
@@ -765,8 +765,10 @@ push, or anchor is created. Return the reviewed artifact and report, clean both 
 After true cross-vendor convergence (not abort and not `--chat`), run `bash
 ~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental> --verdict
 <out>`, `<out>` being the driver's verdict output in `ACTIVE_CHARTER`'s folder; push the
-returned tag exactly. It refuses (exit 65) unless that folder is bound to `<repo>`, the verdict's
-first line is CONVERGED and the driver's `<out>.head` stamp names HEAD and the tree: never anchor
+returned tag exactly. In branch mode, anchor the review checkout's judged HEAD; landing creates a
+different squash commit, which needs its own verdict before it can be anchored. Keep the charter
+folder until anchoring finishes. It refuses (exit 65) unless the folder is bound to `<repo>`, the
+verdict's first line is CONVERGED and `<out>.head` binds HEAD, tree and verdict bytes: never anchor
 a NOT CONVERGED head (2026-10-15, twice). It marks the reviewed commit; round commits retain detail.
 Under `~/projects`, create no tag.
 

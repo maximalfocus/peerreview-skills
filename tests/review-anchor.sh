@@ -101,6 +101,18 @@ v=$(verdict "$r" "$CONV"); rm -f "$v.head"
 refused "no head stamp" "no head stamp" --verdict "$v"
 v=$(verdict "$r" "$CONV"); sleep 1; printf '%s\n' "$CONV" > "$v"
 refused "verdict rewritten after its stamp" "changed after its round stamped it" --verdict "$v"
+# Equal mtimes occur naturally on coarse filesystems: content binding must catch this too.
+v=$(verdict "$r" "NOT CONVERGED — round 2 needed")
+printf '%s\n' "$CONV" > "$v"; touch -r "$v.head" "$v"
+refused "rewritten verdict with equal mtime" "the verdict changed" --verdict "$v"
+for input in verdict.md verdict.md.head .peerreview-repo; do
+  v=$(verdict "$r" "$CONV"); target="${v%/*}/$input"
+  chmod 000 "$target"
+  bash "$script" create "$r" full --verdict "$v" >/dev/null 2>"$tmp/err"; code=$?
+  check "unreadable $input refuses" "$code" 65
+  check "unreadable $input creates no tag" "$(tags)" 0
+  chmod 600 "$target"
+done
 refused "another checkout's charter folder" "the charter folder belongs to" --verdict "$(verdict "$other" "$CONV")"
 refused "unbound charter folder" "bound to no repository" --verdict "$(verdict "$r" "$CONV" unbound)"
 v=$(verdict "$r" "$CONV"); mkdir "$tmp/loose"; cp "$v" "$v.head" "$tmp/loose/"
@@ -114,6 +126,9 @@ out=$(bash "$script" create "$r" full --verdict "$v" 2>"$tmp/err"); code=$?
 check "CONVERGED for this head anchors" "$code" 0
 check "the anchor tags HEAD" "$(git -C "$r" rev-parse "$out^{commit}" 2>/dev/null)" "$(git -C "$r" rev-parse HEAD)"
 v=$(verdict "$r" "CONVERGED")
+# A valid first line need not have a trailing newline (read returns 1 at EOF).
+printf CONVERGED > "$v"
+(cd "$r" && . "$root/scripts/round-support.sh" && rd_verdict_stamp "$v" "$(rd_tree_fingerprint)")
 bash "$script" create "$r" incremental --verdict "$v" >/dev/null 2>&1
 check "a bare CONVERGED line anchors" "$?" 0
 # charter-temp.sh new refuses a path that is not a repository
