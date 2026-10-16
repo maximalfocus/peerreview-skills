@@ -357,4 +357,58 @@ case "$(cat "$records"/*20000101T000000Z-*.json)" in
 esac
 ls "$records"/.record.* >/dev/null 2>&1 && fail "destination refusal left a temp record"
 
+# stat flavours: a fake stat on PATH for GNU (as on Linux) and BSD (as on macOS), so either
+# host runs both paths. The GNU fake answers `-f` as GNU does (file-system status text, exit 1
+# for the extra operand), so reading BSD-first would fail; the BSD fake rejects `-c`.
+mkdir -p "$base/stat-gnu" "$base/stat-bsd" "$base/stat-bad" "$base/stat-bad-owner"
+field_py='import os, sys
+st = os.stat(sys.argv[2])
+print({"%Y": int(st.st_mtime), "%m": int(st.st_mtime), "%u": st.st_uid}[sys.argv[1]])'
+cat > "$base/stat-gnu/stat" <<SH
+#!/bin/sh
+case "\$1" in
+  -c) fmt=\$2; shift 2; [ "\$1" = -- ] && shift; exec python3 -c '$field_py' "\$fmt" "\$1" ;;
+  -f) printf '  File: "%s"\n    ID: 0 Namelen: 255 Type: ext2/ext3\nBlocks: Total: 1\n' "\$3"
+      echo "stat: cannot read file system information for '\$2'" >&2; exit 1 ;;
+esac
+exit 1
+SH
+cat > "$base/stat-bsd/stat" <<SH
+#!/bin/sh
+case "\$1" in
+  -f) fmt=\$2; shift 2; [ "\$1" = -- ] && shift; exec python3 -c '$field_py' "\$fmt" "\$1" ;;
+  -c) echo "stat: illegal option -- c" >&2; exit 1 ;;
+esac
+exit 1
+SH
+cat > "$base/stat-bad/stat" <<'SH'
+#!/bin/sh
+echo 'not a number'
+SH
+cat > "$base/stat-bad-owner/stat" <<SH
+#!/bin/sh
+[ "\$2" = %u ] && { echo 'not a number'; exit 0; }
+fmt=\$2; shift 2; [ "\$1" = -- ] && shift; exec python3 -c '$field_py' "\$fmt" "\$1"
+SH
+chmod +x "$base"/stat-*/stat
+ws_stat=$(new_ws)
+verdict "$v" 'CONVERGED — no substantive defects remain\n'
+for flavour in gnu bsd; do
+  before=$(count)
+  out=$(PATH="$base/stat-$flavour:$PATH" bash "$record" "$ws_stat" "$v" codex REPLY.txt) ||
+    fail "$flavour stat: the pass path was refused"
+  [ "$(count)" -eq $((before + 1)) ] || fail "$flavour stat: no record written"
+  rm -f "$out"
+done
+touch -t 200001010000 "$v"
+PATH="$base/stat-gnu:$PATH" refused "old verdict, GNU stat" \
+  "the verdict output is older than the reviewed commit" "$ws_stat" "$v" codex REPLY.txt
+PATH="$base/stat-bsd:$PATH" refused "old verdict, BSD stat" \
+  "the verdict output is older than the reviewed commit" "$ws_stat" "$v" codex REPLY.txt
+touch "$v"
+PATH="$base/stat-bad:$PATH" refused "unreadable verdict time" \
+  "the verdict output's time could not be read" "$ws_stat" "$v" codex REPLY.txt
+PATH="$base/stat-bad-owner:$PATH" refused "unreadable folder owner" \
+  "the record folder's owner could not be read" "$ws_stat" "$v" codex REPLY.txt
+
 printf 'PASS: chat review record\n'
