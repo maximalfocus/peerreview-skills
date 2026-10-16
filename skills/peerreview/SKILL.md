@@ -47,7 +47,10 @@ Step 0 needs. The Codex peer is tried under each configured Codex home in order 
 signed-out home is skipped with a reason), afresh on every run — an exhausted home is never cached,
 so the first is used again once its quota resets. The winner is printed as
 `CODEX_HOME_LABEL=<label>` (never a path); pass it to every `codex-round.sh` call of the review as
-`PEERREVIEW_CODEX_HOME=<label>`, and keep it for the whole review (sessions live per home):
+`PEERREVIEW_CODEX_HOME=<label>`, and keep it for the whole review (sessions live per home) — until a
+mid-run re-ladder resolves a different Codex home, which replaces the label in a fresh session.
+With no list configured, an ambient `CODEX_HOME` other than the two defaults is the only home tried
+(reported as `codex`):
 
 | Tier | PEER | Selected when |
 |---|---|---|
@@ -83,10 +86,11 @@ review is never a substitute.
 2. Peer preflight is the Step 0.0 resolution itself — `select-peer.sh <repo>` validates each
    candidate's CLI presence and auth without printing credentials (`claude auth status` reporting a
    Claude subscription; `codex login status` reporting a ChatGPT subscription; `pi auth check
-   --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile), and it
-   exits 69 only when no cross-vendor peer survives. Raw-API-key auth on a subscription side is not
-   this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
-   and why, in the report. **A usage limit mid-run re-ladders, automatically:**
+   --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile) — it
+   exits 69 when no cross-vendor peer survives, and 64 when the Codex home list or config is
+   invalid. Raw-API-key auth on a subscription side is not this contract. A resolved tier-2 peer
+   means every tier-1 peer was unreachable — disclose which, and why, in the report. **A usage
+   limit mid-run re-ladders, automatically:**
    re-run `select-peer.sh` (its quota probe skips an exhausted subscription peer) and continue with
    a *different* peer it resolves — another Codex home counts (if the re-run returns the same peer
    and home, fail closed —
