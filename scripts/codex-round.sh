@@ -2,6 +2,7 @@
 # Drive one Codex CLI co-edit round non-interactively in the target repo.
 # The tier-1 peer whenever the HOST is not itself the Codex CLI.
 # Usage: codex-round.sh <repo_dir> <prompt_file> <last_message_out> [round|--verdict]
+# PEERREVIEW_CODEX_HOME=<label> names the Codex home (select-peer.sh's CODEX_HOME_LABEL).
 # PEERREVIEW_ADD_DIRS (or CODEX_ADD_DIRS) may contain newline-separated external
 # evidence directories. They are granted only to a fresh session (round 1, --fresh)
 # or a verdict: `codex exec resume` takes no --add-dir and does NOT carry them over
@@ -16,6 +17,32 @@ prompt_file="${2:?prompt_file}"
 out="${3:?last_message_out}"
 round="${4:-1}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The Codex home select-peer.sh chose (its CODEX_HOME_LABEL), passed by the HOST as
+# PEERREVIEW_CODEX_HOME. Every codex call below — the auth re-check and the round itself — runs
+# with CODEX_HOME set to it, so a resumed round finds the session it started. Unset is accepted
+# only while a single configured home exists, which is then the one (codex-homes.sh).
+. "$script_dir/codex-homes.sh"
+if [ -n "${PEERREVIEW_CODEX_HOME:-}" ]; then
+  codex_label="$PEERREVIEW_CODEX_HOME"
+  codex_home="$(ch_path "$codex_label")" || exit 64
+else
+  homes="$(ch_list)" || exit 64
+  existing=""
+  while IFS="$(printf '\t')" read -r label path; do
+    [ -d "$path" ] && existing="${existing:+$existing }$label"
+  done <<< "$homes"
+  case "$existing" in
+    *" "*) printf 'peerreview: several Codex homes exist (%s); pass select-peer.sh'"'"'s CODEX_HOME_LABEL as PEERREVIEW_CODEX_HOME.\n' "$existing" >&2
+           exit 64 ;;
+    "")    printf 'peerreview: no configured Codex home exists; run select-peer.sh.\n' >&2; exit 69 ;;
+  esac
+  codex_label="$existing"
+  codex_home="$(ch_path "$codex_label")" || exit 64
+fi
+[ -d "$codex_home" ] || { printf 'peerreview: Codex home %s does not exist.\n' "$codex_label" >&2; exit 69; }
+export CODEX_HOME="$codex_home"
+printf 'peerreview: Codex home: %s\n' "$codex_label" >&2
 
 "$script_dir/peer-auth.sh" codex >/dev/null
 git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: %s is not a git repo.\n' "$repo_dir" >&2; exit 69; }

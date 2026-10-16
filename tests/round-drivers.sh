@@ -84,14 +84,20 @@ FAKE_CLAUDE
 cat > "$tmp/bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
 set -euo pipefail
+# Per-home state: $CODEX_HOME/fake-state holds `quota` or `logout`; every call is logged with the
+# home it ran under, so a case can prove which home each codex call used.
+state=""
+[ -z "${CODEX_HOME:-}" ] || [ ! -f "$CODEX_HOME/fake-state" ] || state="$(cat "$CODEX_HOME/fake-state")"
+[ -z "${CODEX_FAKE_HOMES_LOG:-}" ] || printf '%s %s %s\n' "${CODEX_HOME:-unset}" "${1:-}" "${2:-}" >> "$CODEX_FAKE_HOMES_LOG"
 if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
+  [ "$state" != logout ] || { printf 'Not logged in\n' >&2; exit 1; }
   case "${CODEX_FAKE_AUTH:-chatgpt}" in
     chatgpt) printf 'Logged in using ChatGPT\n' ;;
     *) exit 1 ;;
   esac
   exit 0
 fi
-if [ "${CODEX_FAKE_QUOTA:-0}" = 1 ] && [ "${1:-}" = exec ]; then
+if { [ "${CODEX_FAKE_QUOTA:-0}" = 1 ] || [ "$state" = quota ]; } && [ "${1:-}" = exec ]; then
   printf 'ERROR: You have hit your usage limit. Try again at Oct 2nd.\n' >&2; exit 1
 fi
 printf '%s\n' "$*" >> "${CODEX_FAKE_LOG:?}"
@@ -119,6 +125,10 @@ FAKE_CODEX
 chmod +x "$tmp/bin/pi" "$tmp/bin/codex" "$tmp/bin/claude" "$root/scripts/peer-auth.sh" "$root/scripts/select-peer.sh" "$root/scripts/pi-round.sh" "$root/scripts/codex-round.sh" "$root/scripts/git-guard.sh"
 export PATH="$tmp/bin:/usr/bin:/bin"
 export PI_ROUND_TIMEOUT=120 CODEX_ROUND_TIMEOUT=120 CLAUDE_ROUND_TIMEOUT=120
+# One Codex home for the suite, never the runner's own ~/.codex or its codex-homes config.
+mkdir -p "$tmp/homes/.codex" "$tmp/xdg"
+export PEERREVIEW_CODEX_HOMES="$tmp/homes/.codex" XDG_CONFIG_HOME="$tmp/xdg"
+unset PEERREVIEW_CODEX_HOME CODEX_HOME
 # Scrub every HOST marker select-peer.sh consults. Whichever agent runs this
 # suite exports its own, and an inherited marker silently changes the detected
 # HOST — the same leak class as an unpinned PATH. Each assertion sets exactly
@@ -151,7 +161,7 @@ not_contains() { ! grep -F -- "$2" "$1" >/dev/null || fail "$1 unexpectedly cont
 selection="$(PI_CODING_AGENT=true AI_AGENT=pi PI_PROVIDER=deepseek CODEX_CI=1 "$root/scripts/select-peer.sh")"
 [ "$selection" = "HOST=pi HOST_VENDOR=deepseek PEER=claude PEER_VENDOR=anthropic DRIVER=claude-round.sh AUTH_SIDE=claude TIER=1" ] || fail "Pi HOST selection: $selection"
 selection="$(CLAUDE_FAKE_AUTH=none PI_CODING_AGENT=true AI_AGENT=pi PI_PROVIDER=deepseek CODEX_CI=1 "$root/scripts/select-peer.sh")"
-[ "$selection" = "HOST=pi HOST_VENDOR=deepseek PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1" ] || fail "Pi HOST tier-1 fallback to Codex: $selection"
+[ "$selection" = "HOST=pi HOST_VENDOR=deepseek PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1 CODEX_HOME_LABEL=codex" ] || fail "Pi HOST tier-1 fallback to Codex: $selection"
 if PI_CODING_AGENT=true PI_PROVIDER=anthropic "$root/scripts/select-peer.sh" >/dev/null 2>&1; then fail "non-DeepSeek Pi HOST was accepted"; fi
 selection="$(unset PI_CODING_AGENT AI_AGENT PI_PROVIDER; CODEX_CI=1 "$root/scripts/select-peer.sh")"
 [ "$selection" = "HOST=codex HOST_VENDOR=openai PEER=claude PEER_VENDOR=anthropic DRIVER=claude-round.sh AUTH_SIDE=claude TIER=1" ] || fail "Codex HOST selection: $selection"
@@ -166,7 +176,7 @@ case "$selection" in *"PEER=claude"*) fail "API-key Claude was accepted as a tie
 if (unset PI_CODING_AGENT AI_AGENT PI_PROVIDER CODEX_CI CODEX_THREAD_ID CLAUDECODE CLAUDE_CODE_ENTRYPOINT DSH_SESSION_ID DSH_HOME; "$root/scripts/select-peer.sh" >/dev/null 2>&1); then fail "unsupported HOST was accepted"; fi
 # A Claude Code HOST must never be paired with a Claude peer.
 selection="$(CLAUDECODE=1 "$root/scripts/select-peer.sh")"
-[ "$selection" = "HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1" ] || fail "Claude HOST selection: $selection"
+[ "$selection" = "HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1 CODEX_HOME_LABEL=codex" ] || fail "Claude HOST selection: $selection"
 # Signed in but out of quota counts as unreachable: fall through to tier 2.
 want_pi="PEER=pi PEER_VENDOR=deepseek DRIVER=pi-round.sh AUTH_SIDE=pi TIER=2"
 selection="$(CODEX_FAKE_QUOTA=1 CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
@@ -180,6 +190,89 @@ PEERREVIEW_QUOTA_PROBE=0 CODEX_FAKE_QUOTA=1 "$root/scripts/peer-auth.sh" codex -
   >/dev/null || fail "PEERREVIEW_QUOTA_PROBE=0 did not skip the probe"
 CODEX_FAKE_QUOTA=1 "$root/scripts/peer-auth.sh" codex >/dev/null \
   || fail "a round's auth re-check spent a quota probe"
+
+# Codex homes: each configured home is tried in order on every run; the first that is signed in
+# and has quota wins and is printed as a label (never a path); none -> tier 2, a reason per home.
+h="$tmp/ch"; mkdir -p "$h/.codex" "$h/.codex-b" "$h/acct-home"
+token=sk-fake-token-0123456789
+for d in "$h/.codex" "$h/.codex-b" "$h/acct-home"; do
+  printf '{"tokens":{"access_token":"%s"}}\n' "$token" > "$d/auth.json"
+done
+homes="$h/.codex
+$h/.codex-b"
+want_codex="HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1"
+export CODEX_FAKE_LOG="$tmp/codex.log" CODEX_FAKE_STDIN="$tmp/codex.stdin" CODEX_FAKE_HOMES_LOG="$tmp/homes.log"
+sel() { : > "$CODEX_FAKE_HOMES_LOG"; PEERREVIEW_CODEX_HOMES="$homes" CLAUDECODE=1 \
+  "$root/scripts/select-peer.sh" 2>"$tmp/sel.err"; }
+# 1. Both ok: the first wins and the second is never probed.
+selection="$(sel)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex" ] || fail "both homes ok: $selection"
+not_contains "$CODEX_FAKE_HOMES_LOG" "$h/.codex-b"
+# 2. The first exhausted: the second wins; a later run probes the first again (nothing cached).
+printf 'quota\n' > "$h/.codex/fake-state"
+selection="$(sel)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex-b" ] || fail "first home exhausted: $selection"
+contains "$tmp/sel.err" "Codex home codex: Codex CLI subscription is out of quota"
+contains "$CODEX_FAKE_HOMES_LOG" "$h/.codex-b exec"
+rm -f "$h/.codex/fake-state"
+selection="$(sel)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex" ] || fail "first home not re-probed after reset: $selection"
+# The driver runs every codex call under the chosen home, the auth re-check included.
+printf 'quota\n' > "$h/.codex/fake-state"
+: > "$CODEX_FAKE_HOMES_LOG"
+PEERREVIEW_CODEX_HOMES="$homes" PEERREVIEW_CODEX_HOME=codex-b \
+  "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex-home.out" 1 2>"$tmp/drv.err"
+contains "$tmp/codex-home.out" CODEX_OK
+contains "$tmp/drv.err" "Codex home: codex-b"
+contains "$CODEX_FAKE_HOMES_LOG" "$h/.codex-b login status"
+contains "$CODEX_FAKE_HOMES_LOG" "$h/.codex-b exec -C"
+[ "$(grep -cv "^$h/.codex-b " "$CODEX_FAKE_HOMES_LOG")" = 0 ] || fail "a driver codex call ran outside the chosen home"
+# Several homes and no label: refuse rather than guess; an unknown label is refused too.
+if PEERREVIEW_CODEX_HOMES="$homes" "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/x.out" 1 2>"$tmp/drv.err"; then
+  fail "driver guessed a Codex home among several"; fi
+contains "$tmp/drv.err" "PEERREVIEW_CODEX_HOME"
+if PEERREVIEW_CODEX_HOMES="$homes" PEERREVIEW_CODEX_HOME=codex-z "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/x.out" 1 2>/dev/null; then
+  fail "driver accepted an unconfigured Codex home"; fi
+# 3. Both exhausted: tier 2 exactly as before, with a reason per home.
+printf 'quota\n' > "$h/.codex-b/fake-state"
+selection="$(sel)"
+[ "$selection" = "HOST=claude HOST_VENDOR=anthropic $want_pi" ] || fail "both homes exhausted: $selection"
+contains "$tmp/sel.err" "home codex: Codex CLI subscription is out of quota"
+contains "$tmp/sel.err" "home codex-b: Codex CLI subscription is out of quota"
+# 4. A missing home is skipped with a reason.
+rm -f "$h/.codex/fake-state" "$h/.codex-b/fake-state"
+homes="$h/.codex-gone
+$h/.codex-b"
+selection="$(sel)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex-b" ] || fail "missing home not skipped: $selection"
+contains "$tmp/sel.err" "Codex home codex-gone does not exist"
+# 5. A home that is not logged in is skipped with a reason; an explicit label hides the path.
+printf 'logout\n' > "$h/.codex/fake-state"
+homes="$h/.codex
+second=$h/acct-home"
+selection="$(sel)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=second" ] || fail "logged-out home not skipped: $selection"
+contains "$tmp/sel.err" "Codex home codex: Codex CLI is not logged in"
+not_contains "$tmp/sel.err" "acct-home"
+# The secret rule: no output carries the token or an auth path; no auth file is created or copied.
+for f in "$tmp/sel.err" "$tmp/drv.err"; do not_contains "$f" "$token"; not_contains "$f" auth.json; done
+[ ! -e "$h/.codex-gone" ] || fail "selection created a missing Codex home"
+[ "$(find "$h" -name auth.json | wc -l | tr -d ' ')" = 3 ] || fail "an auth file was created or copied"
+# The default list is ~/.codex then ~/.codex-b; a bad list is refused.
+mkdir -p "$tmp/fakehome/.codex-b"
+selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex-b" ] || fail "default home list: $selection"
+contains "$tmp/sel.err" "Codex home codex does not exist"
+mkdir -p "$tmp/xdg/peerreview"
+printf '# ours\nalt=%s\n' "$h/.codex-b" > "$tmp/xdg/peerreview/codex-homes"
+selection="$(unset PEERREVIEW_CODEX_HOMES; CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=alt" ] || fail "config-file home list: $selection"
+rm -f "$tmp/xdg/peerreview/codex-homes"
+selection="$(PEERREVIEW_CODEX_HOMES="Bad Label=$h/.codex" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
+case "$selection" in *"PEER=codex"*) fail "an invalid home list still selected Codex: $selection" ;; esac
+contains "$tmp/sel.err" "no usable label"
+rm -f "$h/.codex/fake-state"
+unset CODEX_FAKE_HOMES_LOG
 
 # Codex HOST -> Pi/DeepSeek PEER: fresh, continuation, verdict, auth, output, git guard.
 export PI_FAKE_LOG="$tmp/pi.log"
