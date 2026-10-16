@@ -127,7 +127,9 @@ esac
 codex_label=""
 codex_ready() {
   local list label path reason
-  list="$(ch_list)" || { tried_reason="the Codex home list is invalid"; return 1; }
+  # A malformed list is a configuration error, not "every home exhausted": 2 makes the caller
+  # fail closed instead of falling through to tier 2.
+  list="$(ch_list)" || return 2
   tried_reason=""
   while IFS="$(printf '\t')" read -r label path; do
     if [ ! -d "$path" ]; then
@@ -152,8 +154,13 @@ for cand in $ladder; do
     continue
   fi
   if [ "$cand" = codex ]; then
-    codex_ready && ok=0 || ok=1
-    reason="$tried_reason"
+    codex_rc=0
+    codex_ready || codex_rc=$?
+    if [ "$codex_rc" = 2 ]; then
+      printf 'peerreview: the Codex home list is invalid; refusing to fall back to tier 2 (reason above).\n' >&2
+      exit 64
+    fi
+    if [ "$codex_rc" = 0 ]; then ok=0; else ok=1; reason="$tried_reason"; fi
   elif reason="$("$script_dir/peer-auth.sh" "$cand" --probe-quota 2>&1 >/dev/null)"; then
     ok=0
   else

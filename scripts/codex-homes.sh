@@ -7,7 +7,7 @@
 #   1. PEERREVIEW_CODEX_HOMES — one entry per line;
 #   2. ${XDG_CONFIG_HOME:-$HOME/.config}/peerreview/codex-homes — one entry per line, `#` comments;
 #   3. the default: $HOME/.codex, then $HOME/.codex-b; a CODEX_HOME pointing elsewhere replaces
-#      the pair, so a single-home user's own CLI home still works.
+#      the pair and is reported as `codex`, so a single-home user's own CLI home still works.
 # An entry is `<path>` or `<label>=<path>`; a leading `~/` means $HOME. The label is what every
 # report names — never the path, which may hold an account name — and defaults to the path's last
 # component without its leading dot (~/.codex -> codex, ~/.codex-b -> codex-b). A label must match
@@ -22,15 +22,22 @@ ch_list() {
   conf="${XDG_CONFIG_HOME:-$HOME/.config}/peerreview/codex-homes"
   if [ -n "${PEERREVIEW_CODEX_HOMES:-}" ]; then
     src=PEERREVIEW_CODEX_HOMES; entries="$PEERREVIEW_CODEX_HOMES"
-  elif [ -f "$conf" ]; then
+  elif [ -e "$conf" ] || [ -L "$conf" ]; then
+    if [ ! -f "$conf" ] || [ ! -r "$conf" ]; then
+      printf 'peerreview: the Codex homes config is not a readable regular file; refusing the default list.\n' >&2
+      return 64
+    fi
     # Only a config file carries `#` comments; an env-var path may contain `#`.
     src="the codex-homes config file"; entries="$(sed 's/#.*//' "$conf")" || return 64
   else
     src=default; entries="$HOME/.codex
 $HOME/.codex-b"
     case "${CODEX_HOME:-}" in
-      ""|"$HOME/.codex"|"$HOME/.codex/"|"$HOME/.codex-b") ;;
-      *) entries="$CODEX_HOME" ;;
+      ""|"$HOME/.codex"|"$HOME/.codex/"|"$HOME/.codex-b"|"$HOME/.codex-b/") ;;
+      *)
+        # A custom CODEX_HOME is the sole home: report it as `codex` rather than derive a
+        # basename label that may not be legal (`Codex`, `.codex_work`) or may be an account name.
+        entries="codex=$CODEX_HOME" ;;
     esac
   fi
   while IFS= read -r line || [ -n "$line" ]; do

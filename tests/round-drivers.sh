@@ -263,10 +263,15 @@ mkdir -p "$tmp/fakehome/.codex-b"
 selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
 [ "$selection" = "$want_codex CODEX_HOME_LABEL=codex-b" ] || fail "default home list: $selection"
 contains "$tmp/sel.err" "Codex home codex does not exist"
-# A single-home user's own CODEX_HOME is tried first when no list is configured.
+# A single-home user's own CODEX_HOME is the only home tried when no list is configured, and it
+# is reported as `codex` even when its basename is not a legal label (AC4: never a path).
+mkdir -p "$tmp/fakehome/.codex_work"
 selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" \
   CODEX_HOME="$h/acct-home" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
-[ "$selection" = "$want_codex CODEX_HOME_LABEL=acct-home" ] || fail "custom CODEX_HOME: $selection"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex" ] || fail "custom CODEX_HOME: $selection"
+selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" \
+  CODEX_HOME="$tmp/fakehome/.codex_work" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=codex" ] || fail "illegal-basename CODEX_HOME: $selection"
 mkdir -p "$tmp/xdg/peerreview"
 printf '# ours\nalt=%s\n' "$h/.codex-b" > "$tmp/xdg/peerreview/codex-homes"
 selection="$(unset PEERREVIEW_CODEX_HOMES; CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
@@ -276,9 +281,37 @@ printf 'tilde=~/.codex-b\n' > "$tmp/xdg/peerreview/codex-homes"
 selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
 [ "$selection" = "$want_codex CODEX_HOME_LABEL=tilde" ] || fail "~/ entry: $selection"
 rm -f "$tmp/xdg/peerreview/codex-homes"
-selection="$(PEERREVIEW_CODEX_HOMES="Bad Label=$h/.codex" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
-case "$selection" in *"PEER=codex"*) fail "an invalid home list still selected Codex: $selection" ;; esac
-contains "$tmp/sel.err" "no usable label"
+# A malformed home list (and an unreadable/odd config) is a configuration error, not "every home
+# exhausted": fail closed with a reason, never degrade to tier 2 or print a PEER line.
+bad_list() { # <list> <reason-substring>
+  local rc=0 out
+  out="$(PEERREVIEW_CODEX_HOMES="$1" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")" || rc=$?
+  [ "$rc" -eq 64 ] || fail "malformed home list exited $rc, want 64: $1"
+  [ -z "$out" ] || fail "malformed home list printed a selection: $1 -> $out"
+  contains "$tmp/sel.err" "$2"
+  contains "$tmp/sel.err" "the Codex home list is invalid"
+}
+bad_list "Bad Label=$h/.codex" "no usable label"
+bad_list "relative/home" "is not an absolute path"
+bad_list "dup=$h/.codex
+dup=$h/.codex-b" "appears twice"
+bad_list " " "names no Codex home"
+# A config path that is not a readable regular file fails closed, never the default list.
+mkdir -p "$tmp/xdg/peerreview/codex-homes"
+rc=0; out="$(unset PEERREVIEW_CODEX_HOMES; CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")" || rc=$?
+[ "$rc" -eq 64 ] || fail "a config directory exited $rc, want 64"
+[ -z "$out" ] || fail "a config directory produced a selection: $out"
+contains "$tmp/sel.err" "not a readable regular file"
+rmdir "$tmp/xdg/peerreview/codex-homes"
+printf 'alt=%s\n' "$h/.codex-b" > "$tmp/xdg/peerreview/codex-homes"
+chmod 000 "$tmp/xdg/peerreview/codex-homes"
+if [ ! -r "$tmp/xdg/peerreview/codex-homes" ]; then
+  rc=0; out="$(unset PEERREVIEW_CODEX_HOMES; CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")" || rc=$?
+  [ "$rc" -eq 64 ] || fail "an unreadable config file exited $rc, want 64"
+  [ -z "$out" ] || fail "an unreadable config file produced a selection: $out"
+  contains "$tmp/sel.err" "not a readable regular file"
+fi
+chmod 600 "$tmp/xdg/peerreview/codex-homes"; rm -f "$tmp/xdg/peerreview/codex-homes"
 rm -f "$h/.codex/fake-state"
 unset CODEX_FAKE_HOMES_LOG
 
