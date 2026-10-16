@@ -98,8 +98,10 @@ review is never a substitute.
 4. **Create a fresh active review charter; never add review scaffolding to the repo.** Use the
    schema in `~/personal/peerreview-skills/templates/PROBLEM.md`, but create `PROBLEM.md` in a
    private temp directory with `bash
-   ~/personal/peerreview-skills/scripts/charter-temp.sh new`; retain the returned path as
-   `ACTIVE_CHARTER`. That directory is the review's own place: keep round prompts, outputs and
+   ~/personal/peerreview-skills/scripts/charter-temp.sh new <repo>`, which binds it to that
+   checkout; retain the returned path as `ACTIVE_CHARTER` and never pick a charter folder by
+   recency (one-brim-autotest 2026-10-15: a worker took another review's). That directory
+   is the review's own place: keep round prompts, outputs and
    gate files beside the charter and PEER evidence in a subfolder mounted alone; quote or copy
    anything the report or a record still needs before `clean`, which removes it all; never add an
    `rm` of your own (one-brim-autotest 2026-10-13: two close-outs sat on a guard prompt at an
@@ -737,7 +739,7 @@ owns this update because only it knows the terminal review outcome: explicit cro
 verdict-pending, or non-progress abort → `☐ review owed`. Never advance the project's `PLAN.md`
 lifecycle status merely because its repo review finished.
 
-Before the terminal report, always clean review-owned charter state with `bash
+After anchoring (when applicable), before the terminal report, clean review-owned state with `bash
 ~/personal/peerreview-skills/scripts/charter-temp.sh clean "$ACTIVE_CHARTER"` (on convergence,
 required-pair failure, non-progress abort, dry-run, or error). A pre-existing repo-root `PROBLEM.md`
 is not review-owned and is never removed.
@@ -746,7 +748,7 @@ On convergence, land a branch-mode review with `scripts/delivery-branch.sh land 
 <msgfile>` — one squashed commit on delivery branch `evolve/<slug>` whose first non-blank line
 `land` preflights as the N-4 subject; `land` pushes that branch, opens (or reuses) its PR against
 the base branch (title = subject, body = message body), prints the PR URL, and never writes the base
-branch — then create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
+branch. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
 <PR>` on the maintainer's explicit instruction merges it, never this run. The review branch is kept
 locally; its round commits remain the detailed record.
 
@@ -761,9 +763,14 @@ push, or anchor is created. Return the reviewed artifact and report, clean both 
 `CHAT_WORKSPACE`, and state that the review was ephemeral.
 
 After true cross-vendor convergence (not abort and not `--chat`), run `bash
-~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental>`; push the
-returned tag exactly. It marks the reviewed commit; round commits retain detail. Under `~/projects`,
-create no tag.
+~/personal/peerreview-skills/scripts/review-anchor.sh create <repo> <full|incremental> --verdict
+<out>`, `<out>` being the driver's verdict output in `ACTIVE_CHARTER`'s folder; push the
+returned tag exactly. In branch mode, anchor the review checkout's judged HEAD; landing creates a
+different squash commit, which needs its own verdict before it can be anchored. Keep the charter
+folder until anchoring finishes. It refuses (exit 65) unless the folder is bound to `<repo>`, the
+verdict's first line is CONVERGED and `<out>.head` binds HEAD, tree and verdict bytes: never anchor
+a NOT CONVERGED head (2026-10-15, twice). It marks the reviewed commit; round commits retain detail.
+Under `~/projects`, create no tag.
 
 Never claim "perfect" — claim "converged against the charter, gates green, residuals listed."
 

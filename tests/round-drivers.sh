@@ -58,6 +58,7 @@ if [ "${PI_FAKE_GIT_MUTATE:-0}" = 1 ]; then
   if GIT_OBJECT_DIRECTORY="$protected/.git/objects" git -C "$protected/../scratch" commit --allow-empty -m peer-object-evil >/dev/null 2>&1; then exit 91; fi
   if mkdir -p "$protected/../scratch3/evilwt" && printf 'ref: refs/heads/master\n' > "$protected/../scratch3/evilwt/HEAD" && GIT_DIR="$protected/../scratch3/evilwt" GIT_COMMON_DIR="$protected/.git" GIT_WORK_TREE="$protected/../scratch" git -C "$protected/../scratch" commit --allow-empty -m peer-common-evil >/dev/null 2>&1; then exit 91; fi
 fi
+[ "${PEER_FAKE_TOUCH:-0}" != 1 ] || printf 'peer-edit\n' >> file.txt
 [ "${PI_FAKE_EMPTY:-0}" = 1 ] || printf 'PI_OK\n'
 FAKE_PI
 
@@ -78,7 +79,8 @@ fi
 printf '%s\n' "$*" >> "${CLAUDE_FAKE_LOG:?}"
 cat > "${CLAUDE_FAKE_STDIN:-/dev/null}"
 [ "${CLAUDE_FAKE_RC:-0}" = 0 ] || exit "$CLAUDE_FAKE_RC"
-printf 'CLAUDE_OK\n'
+[ "${PEER_FAKE_TOUCH:-0}" != 1 ] || printf 'peer-edit\n' >> file.txt
+printf '{"result":"CLAUDE_OK","is_error":false}\n'
 FAKE_CLAUDE
 
 cat > "$tmp/bin/codex" <<'FAKE_CODEX'
@@ -114,8 +116,16 @@ done
 # A report written while the peer keeps working must not surface as the round's
 # end: the driver publishes the final path only after this process exits.
 [ -z "$out_file" ] || [ "${CODEX_FAKE_LINGER:-0}" != 1 ] || { [ -e "${out_file%.partial}" ] && exit 92; sleep 1; }
-[ "${CODEX_FAKE_TOUCH:-0}" != 1 ] || printf 'peer-edit\n' >> file.txt
+[ "${CODEX_FAKE_TOUCH:-${PEER_FAKE_TOUCH:-0}}" != 1 ] || printf 'peer-edit\n' >> file.txt
 FAKE_CODEX
+cat > "$tmp/bin/dsh" <<'FAKE_DSH'
+#!/usr/bin/env bash
+set -euo pipefail
+case " $* " in *' --dump-config '*) exit 0 ;; esac
+[ "${PEER_FAKE_TOUCH:-0}" != 1 ] || printf 'peer-edit\n' >> file.txt
+printf 'DSH_OK\n'
+FAKE_DSH
+chmod +x "$tmp/bin/dsh"
 chmod +x "$tmp/bin/pi" "$tmp/bin/codex" "$tmp/bin/claude" "$root/scripts/peer-auth.sh" "$root/scripts/select-peer.sh" "$root/scripts/pi-round.sh" "$root/scripts/codex-round.sh" "$root/scripts/git-guard.sh"
 export PATH="$tmp/bin:/usr/bin:/bin"
 export PI_ROUND_TIMEOUT=120 CODEX_ROUND_TIMEOUT=120 CLAUDE_ROUND_TIMEOUT=120
@@ -200,6 +210,8 @@ contains "$PI_FAKE_LOG" " -c"
 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" --verdict
 contains "$PI_FAKE_LOG" "--tools read,grep,find,ls"
 not_contains "$PI_FAKE_LOG" "read,write"
+# A verdict that left the tree alone is stamped with the head it judged (review-anchor.sh create).
+contains "$tmp/pi.out.head" "head $(git -C "$tmp/repo" rev-parse HEAD)"
 
 base_head="$(git -C "$tmp/repo" rev-parse HEAD)"
 PI_FAKE_GIT_MUTATE=1 "$root/scripts/pi-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/pi.out" 1
@@ -242,10 +254,17 @@ contains "$CODEX_FAKE_LOG" "-s read-only"
 not_contains "$CODEX_FAKE_LOG" "resume"
 not_contains "$CODEX_FAKE_LOG" "workspace-write"
 contains "$tmp/codex.stdin" "Read-only verdict round"
+contains "$tmp/codex.out.head" "head $(git -C "$tmp/repo" rev-parse HEAD)"
+contains "$tmp/codex.out.head" "fingerprint "
+# A co-edit round on the same output path removes the earlier verdict's stamp.
+"$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1
+[ ! -e "$tmp/codex.out.head" ] || fail "an edit round left an earlier verdict's head stamp"
+"$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict
 # A verdict round that moves the tree fails loud and is left for adjudication.
 rc=0; CODEX_FAKE_TOUCH=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" --verdict 2>"$tmp/codex.err" || rc=$?
 [ "$rc" -eq 70 ] || fail "verdict that mutated the tree was not refused with 70 (rc=$rc)"
 contains "$tmp/codex.err" "mutated the repo during a read-only verdict"
+[ ! -e "$tmp/codex.out.head" ] || fail "a verdict that mutated the tree left a head stamp"
 grep -q peer-edit "$tmp/repo/file.txt" || fail "verdict mutation was reverted instead of left for adjudication"
 git -C "$tmp/repo" checkout -q -- file.txt
 # An edit round moving the tree is the normal case and is not refused.
@@ -307,6 +326,71 @@ if CODEX_FAKE_AUTH=none "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt"
 if CODEX_FAKE_RC=42 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex.out" 1 >/dev/null 2>&1; then fail "failed Codex round was accepted"; fi
 if CODEX_FAKE_EMPTY=1 "$root/scripts/codex-round.sh" "$tmp/repo" "$tmp/prompt" "$tmp/codex-empty.out" 1 >/dev/null 2>&1; then fail "empty Codex report was accepted"; fi
 if PATH=/usr/bin:/bin "$root/scripts/peer-auth.sh" codex >/dev/null 2>&1; then fail "missing Codex CLI was accepted"; fi
+
+# Exercise all four stamp writers, including failed preflights with absolute and
+# repo-relative outputs. Test a sentinel in the caller too: invalidation must use
+# the same output path that the driver will use after its cd.
+export DEEPSEEK_API_KEY=offline-fixture CLAUDE_FAKE_LOG="$tmp/claude.log"
+export PEERREVIEW_CLAUDE_SESSION_DIR="$tmp/claude-sessions"
+export PEERREVIEW_PI_SESSION_DIR="$tmp/pi-sessions" DSH_ROUND_TIMEOUT=120
+for peer in codex claude pi dsh; do
+  driver="$root/scripts/$peer-round.sh"
+  output="$tmp/$peer-matrix.out"
+  bash "$driver" "$tmp/repo" "$tmp/prompt" "$output" --verdict
+  contains "$output.head" "head $(git -C "$tmp/repo" rev-parse HEAD)"
+  contains "$output.head" 'verdict '
+  rc=0
+  PEER_FAKE_TOUCH=1 bash "$driver" "$tmp/repo" "$tmp/prompt" "$output" --verdict \
+    >/dev/null 2>"$tmp/matrix.err" || rc=$?
+  [ "$rc" -eq 70 ] || fail "$peer stamped a mutated verdict (rc=$rc)"
+  [ ! -e "$output.head" ] || fail "$peer left a stamp after mutation"
+  grep -q peer-edit "$tmp/repo/file.txt" || fail "$peer reverted the mutation"
+  git -C "$tmp/repo" checkout -q -- file.txt
+  for preflight in missing-prompt no-charter auth; do
+    for output in "$tmp/$peer-matrix.out" matrix-relative.out; do
+      case "$output" in /*) stamp="$output.head" ;; *) stamp="$tmp/repo/$output.head" ;; esac
+      printf 'old stamp\n' > "$stamp"
+      printf 'caller sentinel\n' > "$tmp/matrix-relative.out.head"
+      prompt="$tmp/prompt"
+      case "$preflight" in
+        missing-prompt) prompt="$tmp/missing" ;;
+        no-charter) prompt="$tmp/prompt-nocharter" ;;
+      esac
+      rc=0
+      ( cd "$tmp"
+        if [ "$preflight" = auth ]; then
+          export CODEX_FAKE_AUTH=none CLAUDE_FAKE_AUTH=none PI_FAKE_AUTH=none
+          unset DEEPSEEK_API_KEY
+        fi
+        bash "$driver" "$tmp/repo" "$prompt" "$output" --verdict
+      ) >/dev/null 2>"$tmp/matrix.err" || rc=$?
+      [ "$rc" -ne 0 ] || fail "$peer accepted $preflight"
+      [ ! -e "$stamp" ] || fail "$peer retained an old stamp on $preflight ($output)"
+      contains "$tmp/matrix-relative.out.head" 'caller sentinel'
+    done
+  done
+done
+
+# Fingerprint failures must propagate even in an if/! context (where set -e is
+# disabled throughout the called function), rather than hashing partial output.
+for broken in rev-parse status diff ls-files; do
+  (
+    cd "$tmp/repo"
+    . "$root/scripts/round-support.sh"
+    real_git=$(command -v git)
+    git() { [ "$1" != "$broken" ] || return 42; "$real_git" "$@"; }
+    if rd_tree_fingerprint > /dev/null; then fail "fingerprint masked git $broken failure"; fi
+    if rd_verdict_stamp "$tmp/broken.out" ignored; then fail "stamp masked git $broken failure"; fi
+    [ ! -e "$tmp/broken.out.head" ] || fail "failed fingerprint wrote a stamp"
+  ) || exit 1
+done
+(
+  cd "$tmp/repo"
+  . "$root/scripts/round-support.sh"
+  ln -s missing-target dangling
+  if rd_tree_fingerprint >/dev/null 2>&1; then fail "fingerprint masked unreadable untracked input"; fi
+  rm dangling
+) || exit 1
 
 # --- git-guard: deny by default inside the protected checkout (issue #3) -------
 # The guard used to decide by an enumerated DENYlist, so any subcommand nobody

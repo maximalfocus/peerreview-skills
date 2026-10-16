@@ -11,6 +11,8 @@ out="${3:?last_message_out}"
 round="${4:-1}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Invalidate before auth/prompt preflights, resolving relative outputs as after cd below.
+(cd "$repo_dir" && rm -f -- "$out.head")
 "$script_dir/peer-auth.sh" claude >/dev/null
 git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: %s is not a git repo.\n' "$repo_dir" >&2; exit 69; }
 [ -f "$prompt_file" ] || { printf 'peerreview: prompt file missing: %s\n' "$prompt_file" >&2; exit 66; }
@@ -82,6 +84,9 @@ guard_dir="$(bash "$script_dir/git-guard.sh" "$(pwd -P)")"
 trap 'rm -rf "$guard_dir"' EXIT
 real_git="$(command -v git)"
 
+head_before="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
+fingerprint_before="$(rd_tree_fingerprint)"
+
 rc=0
 # shellcheck disable=SC2086
 PATH="$guard_dir:$PATH" PEERREVIEW_REAL_GIT="$real_git" PEERREVIEW_PROTECTED_REPO="$(pwd -P)" \
@@ -109,3 +114,9 @@ PY
   printf 'peerreview: Claude returned no report (see %s).\n' "$out.transcript" >&2
   exit 70
 }
+
+if [ "$round" = "--verdict" ] && ! rd_verdict_stamp "$out" "$fingerprint_before"; then
+  printf 'peerreview: Claude mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
+    "$head_before" "$(git rev-parse HEAD 2>/dev/null || printf 'none')" >&2
+  exit 70
+fi

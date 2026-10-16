@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The review's private folder. `new` makes it and prints the path of its PROBLEM.md; the HOST
+# The review's private folder. `new <repo>` makes it, binds it to that repository's top level
+# (`.peerreview-repo`, read by review-anchor.sh create: a verdict anchors only from the folder made
+# for that checkout, never one picked by recency) and prints the path of its PROBLEM.md; the HOST
 # keeps the review's own files there too (round prompts, outputs, gate files, a PEER evidence
 # subfolder). `clean` removes that folder with everything in it, and nothing else: it refuses
 # unless the path is the PROBLEM.md of a folder `new` made (its name, its owner marker), that
@@ -27,11 +29,20 @@ owner_of() {
 
 case "${1:-}" in
   new)
+    bound=
+    if [[ -n ${2:-} ]]; then
+      bound=$(git -C "$2" rev-parse --show-toplevel 2>/dev/null) &&
+        bound=$(cd -- "$bound" && pwd -P) || {
+        echo "not a git repo: $2" >&2
+        exit 2
+      }
+    fi
     old_umask=$(umask)
     umask 077
     dir=$(mktemp -d "$root/peerreview-charter.XXXXXX")
     path="$dir/PROBLEM.md"
     : > "$dir/.peerreview-owned"
+    [[ -z $bound ]] || printf '%s\n' "$bound" > "$dir/.peerreview-repo"
     : > "$path"
     umask "$old_umask"
     printf '%s\n' "$path"
@@ -64,7 +75,7 @@ case "${1:-}" in
     )
     ;;
   *)
-    echo "usage: $0 new | clean <temp-PROBLEM.md>" >&2
+    echo "usage: $0 new [<repo>] | clean <temp-PROBLEM.md>" >&2
     exit 2
     ;;
 esac

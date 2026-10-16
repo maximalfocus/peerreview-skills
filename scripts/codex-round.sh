@@ -17,6 +17,8 @@ out="${3:?last_message_out}"
 round="${4:-1}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Invalidate before auth/prompt preflights, resolving relative outputs as after cd below.
+(cd "$repo_dir" && rm -f -- "$out.head")
 "$script_dir/peer-auth.sh" codex >/dev/null
 git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: %s is not a git repo.\n' "$repo_dir" >&2; exit 69; }
 [ -f "$prompt_file" ] || { printf 'peerreview: prompt file missing: %s\n' "$prompt_file" >&2; exit 66; }
@@ -106,7 +108,7 @@ fi
 [ -s "$partial" ] || { printf 'peerreview: Codex returned no report (see %s).\n' "$out.transcript" >&2; exit 70; }
 mv -f "$partial" "$out"
 
-if [ "$round" = "--verdict" ] && [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
+if [ "$round" = "--verdict" ] && ! rd_verdict_stamp "$out" "$fingerprint_before"; then
   printf 'peerreview: Codex mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
     "$head_before" "$(git rev-parse HEAD 2>/dev/null || printf 'none')" >&2
   exit 70

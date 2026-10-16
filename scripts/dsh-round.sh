@@ -20,6 +20,8 @@ out="${3:?last_message_out}"
 round="${4:-1}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Invalidate before auth/prompt preflights, resolving relative outputs as after cd below.
+(cd "$repo_dir" && rm -f -- "$out.head")
 "$script_dir/peer-auth.sh" dsh >/dev/null
 git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 || { printf 'peerreview: %s is not a git repo.\n' "$repo_dir" >&2; exit 69; }
 [ -f "$prompt_file" ] || { printf 'peerreview: prompt file missing: %s\n' "$prompt_file" >&2; exit 66; }
@@ -68,7 +70,7 @@ fi
 
 if [ "$round" = "--verdict" ]; then
   head_after="$(git rev-parse HEAD 2>/dev/null || printf 'none')"
-  if [ "$fingerprint_before" != "$(rd_tree_fingerprint)" ]; then
+  if ! rd_verdict_stamp "$out" "$fingerprint_before"; then
     printf 'peerreview: dsh mutated the repo during a read-only verdict round (HEAD %s -> %s). Not auto-reverted; adjudicate the diff before accepting any verdict.\n' \
       "$head_before" "$head_after" >&2
     exit 70

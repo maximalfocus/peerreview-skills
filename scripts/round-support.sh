@@ -90,12 +90,28 @@ rd_require_charter() {
 #   auto-reverted — the HOST adjudicates it before accepting any verdict.
 rd_tree_fingerprint() {
   {
-    git rev-parse HEAD 2>/dev/null || printf 'none\n'
-    git status --porcelain
-    git diff HEAD --binary 2>/dev/null || true
+    git rev-parse HEAD || return 1
+    git status --porcelain || return 1
+    git diff HEAD --binary || return 1
     git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do
       printf '%s\n' "$f"
-      /usr/bin/shasum -a 256 "$f" 2>/dev/null || printf 'unreadable\n'
+      /usr/bin/shasum -a 256 -- "$f" || return 1
     done
   } | /usr/bin/shasum -a 256 | awk '{print $1}'
+}
+
+# rd_verdict_stamp <out> <fingerprint_before>
+#   After a read-only verdict, write <out>.head: HEAD, tree fingerprint and verdict
+#   SHA-256. review-anchor.sh create binds the verdict's bytes to the head it tags,
+#   so a rewritten verdict or a later commit cannot reuse the stamp. Returns 1,
+#   writing nothing, when the tree changed during the round. Drivers remove an
+#   older stamp before the round starts, so a failed round leaves none.
+#   (2026-10-15: anchors were cut twice on heads whose verdict was NOT CONVERGED.)
+rd_verdict_stamp() {
+  local after head digest
+  after=$(rd_tree_fingerprint) || return 1
+  [ "$2" = "$after" ] || return 1
+  head=$(git rev-parse HEAD) || return 1
+  digest=$(/usr/bin/shasum -a 256 < "$1") || return 1
+  printf 'head %s\nfingerprint %s\nverdict %s\n' "$head" "$2" "${digest%% *}" > "$1.head"
 }

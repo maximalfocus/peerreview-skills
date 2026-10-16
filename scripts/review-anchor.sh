@@ -1,11 +1,46 @@
 #!/usr/bin/env bash
 # Durable convergence checkpoints without adding files to the reviewed tree.
 # Usage: review-anchor.sh latest <repo> [--fetch]
-#        review-anchor.sh create <repo> <full|incremental>
+#        review-anchor.sh create <repo> <full|incremental> --verdict <verdict-out>
+# create anchors only the head a CONVERGED verdict judged: <verdict-out> is the round driver's
+# --verdict output in the review's charter folder (charter-temp.sh new <repo>, bound to this
+# checkout), its first line CONVERGED, and its <verdict-out>.head binds HEAD, tree and verdict bytes.
+# (2026-10-15: anchors were cut twice on NOT CONVERGED heads, and a worker took another review's
+# folder by recency.)
 set -euo pipefail
 
 cmd=${1:-}; repo=${2:-}
-[[ -n $cmd && -n $repo ]] || { sed -n '2,4p' "$0" >&2; exit 64; }
+[[ -n $cmd && -n $repo ]] || { sed -n '2,9p' "$0" >&2; exit 64; }
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+refuse() { echo "refusing to anchor: $*" >&2; exit 65; }
+
+# verdict_gate <verdict-out>: the checks above, every one fail-closed.
+verdict_gate() {
+  local file=$1 dir bound top first= stamp want head fingerprint digest actual
+  [[ -n $file && -f $file && ! -L $file ]] || refuse "no verdict file (pass --verdict <verdict-out>): ${file:-none}"
+  dir=$(cd -- "$(dirname -- "$file")" 2>/dev/null && pwd -P) || refuse "verdict folder unreadable: $file"
+  [[ ${dir##*/} == peerreview-charter.?* && -f $dir/.peerreview-owned && ! -L $dir/.peerreview-owned ]] ||
+    refuse "the verdict is not in a charter folder made by charter-temp.sh new: $file"
+  [[ -f $dir/.peerreview-repo && ! -L $dir/.peerreview-repo ]] ||
+    refuse "the charter folder is bound to no repository (make it with charter-temp.sh new <repo>): $dir"
+  bound=$(cat -- "$dir/.peerreview-repo") || refuse "cannot read charter binding: $dir"
+  top=$(git -C "$repo" rev-parse --show-toplevel) && top=$(cd -- "$top" && pwd -P) || refuse "no top level: $repo"
+  [[ $bound == "$top" ]] || refuse "the charter folder belongs to $bound, not $top"
+  IFS= read -r first < "$file" || [[ -n $first ]] || refuse "the verdict is empty: $file"
+  first=${first%$'\r'}
+  [[ $first == CONVERGED || $first == "CONVERGED "* ]] || refuse "the verdict's first line is not CONVERGED: $first"
+  stamp=$file.head
+  [[ -f $stamp && ! -L $stamp ]] || refuse "no head stamp beside the verdict (run the verdict with a round driver): $stamp"
+  [[ ! $file -nt $stamp ]] || refuse "the verdict changed after its round stamped it: $file"
+  head=$(git -C "$repo" rev-parse HEAD) || refuse "cannot read HEAD of $repo"
+  fingerprint=$(cd -- "$repo" && . "$script_dir/round-support.sh" && rd_tree_fingerprint) ||
+    refuse "cannot read tree of $repo"
+  digest=$(/usr/bin/shasum -a 256 < "$file") || refuse "cannot read verdict: $file"
+  printf -v want 'head %s\nfingerprint %s\nverdict %s' "$head" "$fingerprint" "${digest%% *}"
+  actual=$(cat -- "$stamp") || refuse "cannot read stamp: $stamp"
+  [[ $actual == "$want" ]] || refuse "the verdict changed or judged another head or tree than HEAD $head"
+}
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || { echo "not a git repo: $repo" >&2; exit 69; }
 
 latest() {
@@ -26,7 +61,10 @@ case "$cmd" in
     ;;
   create)
     mode=${3:-}; [[ $mode == full || $mode == incremental ]] || { echo "mode must be full or incremental" >&2; exit 64; }
-    [[ -z $(git -C "$repo" status --porcelain) ]] || { echo "reviewed tree must be clean before anchoring" >&2; exit 1; }
+    status=$(git -C "$repo" status --porcelain) || refuse "cannot read tree status: $repo"
+    [[ -z $status ]] || { echo "reviewed tree must be clean before anchoring" >&2; exit 1; }
+    [[ ${4:-} == --verdict && $# -eq 5 ]] || refuse "usage: create <repo> <full|incremental> --verdict <verdict-out>"
+    verdict_gate "$5"
     tree=$(git -C "$repo" rev-parse HEAD); row=$(latest)
     if [[ -n $row ]]; then base_tag=${row%%$'\t'*}; base_commit=${row#*$'\t'}; serial=$((10#$(basename "$base_tag" | cut -d- -f1) + 1))
     else base_tag=none; base_commit=none; serial=1; fi
