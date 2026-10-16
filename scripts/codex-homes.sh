@@ -33,9 +33,11 @@ $HOME/.codex-b"
     [ -n "$line" ] || continue
     case "$line" in
       *=*) label="${line%%=*}"; path="${line#*=}" ;;
-      *)   path="$line"; label="${line##*/}"; label="${label#.}" ;;
+      *)   path="$line"; label="" ;;
     esac
     case "$path" in "~/"*) path="$HOME/${path#\~/}" ;; esac
+    while [ "${#path}" -gt 1 ] && [ "${path%/}" != "$path" ]; do path="${path%/}"; done
+    if [ -z "$label" ]; then label="${path##*/}"; label="${label#.}"; fi
     case "$path" in
       /*) ;;
       *) printf 'peerreview: a Codex home in %s is not an absolute path (entry %s).\n' "$src" "$((n + 1))" >&2

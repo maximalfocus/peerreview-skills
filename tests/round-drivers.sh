@@ -199,7 +199,7 @@ for d in "$h/.codex" "$h/.codex-b" "$h/acct-home"; do
   printf '{"tokens":{"access_token":"%s"}}\n' "$token" > "$d/auth.json"
 done
 homes="$h/.codex
-$h/.codex-b"
+$h/.codex-b/"
 want_codex="HOST=claude HOST_VENDOR=anthropic PEER=codex PEER_VENDOR=openai DRIVER=codex-round.sh AUTH_SIDE=codex TIER=1"
 export CODEX_FAKE_LOG="$tmp/codex.log" CODEX_FAKE_STDIN="$tmp/codex.stdin" CODEX_FAKE_HOMES_LOG="$tmp/homes.log"
 sel() { : > "$CODEX_FAKE_HOMES_LOG"; PEERREVIEW_CODEX_HOMES="$homes" CLAUDECODE=1 \
