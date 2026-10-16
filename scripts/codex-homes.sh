@@ -6,7 +6,8 @@
 # source that is set:
 #   1. PEERREVIEW_CODEX_HOMES — one entry per line;
 #   2. ${XDG_CONFIG_HOME:-$HOME/.config}/peerreview/codex-homes — one entry per line, `#` comments;
-#   3. the default: $HOME/.codex, then $HOME/.codex-b.
+#   3. the default: $HOME/.codex, then $HOME/.codex-b; a CODEX_HOME pointing elsewhere replaces
+#      the pair, so a single-home user's own CLI home still works.
 # An entry is `<path>` or `<label>=<path>`; a leading `~/` means $HOME. The label is what every
 # report names — never the path, which may hold an account name — and defaults to the path's last
 # component without its leading dot (~/.codex -> codex, ~/.codex-b -> codex-b). A label must match
@@ -22,13 +23,17 @@ ch_list() {
   if [ -n "${PEERREVIEW_CODEX_HOMES:-}" ]; then
     src=PEERREVIEW_CODEX_HOMES; entries="$PEERREVIEW_CODEX_HOMES"
   elif [ -f "$conf" ]; then
-    src="the codex-homes config file"; entries="$(cat "$conf")" || return 64
+    # Only a config file carries `#` comments; an env-var path may contain `#`.
+    src="the codex-homes config file"; entries="$(sed 's/#.*//' "$conf")" || return 64
   else
     src=default; entries="$HOME/.codex
 $HOME/.codex-b"
+    case "${CODEX_HOME:-}" in
+      ""|"$HOME/.codex"|"$HOME/.codex/"|"$HOME/.codex-b") ;;
+      *) entries="$CODEX_HOME" ;;
+    esac
   fi
   while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%%#*}"
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [ -n "$line" ] || continue
     case "$line" in
@@ -64,6 +69,10 @@ ch_path() {
   while IFS="$(printf '\t')" read -r label path; do
     [ "$label" = "$want" ] && { printf '%s\n' "$path"; return 0; }
   done <<< "$list"
-  printf 'peerreview: Codex home %s is not configured.\n' "$want" >&2
+  if printf '%s' "$want" | grep -Eq '^[a-z0-9][a-z0-9-]*$'; then
+    printf 'peerreview: Codex home %s is not configured.\n' "$want" >&2
+  else
+    printf 'peerreview: PEERREVIEW_CODEX_HOME must be a label from CODEX_HOME_LABEL, not a path.\n' >&2
+  fi
   return 64
 }

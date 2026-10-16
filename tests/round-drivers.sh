@@ -263,10 +263,18 @@ mkdir -p "$tmp/fakehome/.codex-b"
 selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
 [ "$selection" = "$want_codex CODEX_HOME_LABEL=codex-b" ] || fail "default home list: $selection"
 contains "$tmp/sel.err" "Codex home codex does not exist"
+# A single-home user's own CODEX_HOME is tried first when no list is configured.
+selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" \
+  CODEX_HOME="$h/acct-home" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=acct-home" ] || fail "custom CODEX_HOME: $selection"
 mkdir -p "$tmp/xdg/peerreview"
 printf '# ours\nalt=%s\n' "$h/.codex-b" > "$tmp/xdg/peerreview/codex-homes"
 selection="$(unset PEERREVIEW_CODEX_HOMES; CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
 [ "$selection" = "$want_codex CODEX_HOME_LABEL=alt" ] || fail "config-file home list: $selection"
+# A configured entry may use the documented `~/` expansion.
+printf 'tilde=~/.codex-b\n' > "$tmp/xdg/peerreview/codex-homes"
+selection="$(unset PEERREVIEW_CODEX_HOMES; HOME="$tmp/fakehome" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>/dev/null)"
+[ "$selection" = "$want_codex CODEX_HOME_LABEL=tilde" ] || fail "~/ entry: $selection"
 rm -f "$tmp/xdg/peerreview/codex-homes"
 selection="$(PEERREVIEW_CODEX_HOMES="Bad Label=$h/.codex" CLAUDECODE=1 "$root/scripts/select-peer.sh" 2>"$tmp/sel.err")"
 case "$selection" in *"PEER=codex"*) fail "an invalid home list still selected Codex: $selection" ;; esac

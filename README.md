@@ -151,9 +151,10 @@ Restart Codex after installation so it rebuilds the skill index.
 
 A second ChatGPT account can take a review when the first is out of quota: log it in under its own
 home (`CODEX_HOME=~/.codex-b codex login --device-auth`, directory mode 0700) and `select-peer.sh`
-tries `~/.codex`, then `~/.codex-b`, on every run. Another list goes in `PEERREVIEW_CODEX_HOMES` or
-`~/.config/peerreview/codex-homes`, one `<path>` or `<label>=<path>` per line; reports name only the
-label. Each home keeps its own login: never copy an auth file between homes or hosts.
+tries `~/.codex`, then `~/.codex-b`, on every run; a `CODEX_HOME` set elsewhere is the only home
+tried. Another list goes in `PEERREVIEW_CODEX_HOMES` or `~/.config/peerreview/codex-homes`, one
+`<path>` or `<label>=<path>` per line; reports name only the label. Each home keeps its own login:
+never copy an auth file between homes or hosts.
 
 ### Pi — tier 2
 
