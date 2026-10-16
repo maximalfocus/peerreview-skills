@@ -42,7 +42,15 @@ convergence; the PEER only co-edits. Resolve both mechanically with
 Codex CLI, Pi, DeepSeek Harness) and from the model or endpoint behind them, walks the ladder below
 in order, and preflights each candidate's CLI **and** auth — and, for the subscription peers, quota:
 one tiny prompt whose usage-limit reply counts as unreachable — so it is also the peer preflight
-Step 0 needs:
+Step 0 needs. The Codex peer is tried under each configured Codex home in order (`codex-homes.sh`:
+`PEERREVIEW_CODEX_HOMES`, else its config file, else `~/.codex` then `~/.codex-b`; a missing or
+signed-out home is skipped with a reason), afresh on every run — an exhausted home is never cached,
+so the first is used again once its quota resets. The winner is printed as
+`CODEX_HOME_LABEL=<label>` (never a path); pass it to every `codex-round.sh` call of the review as
+`PEERREVIEW_CODEX_HOME=<label>`, and keep it for the whole review (sessions live per home) — until a
+mid-run re-ladder resolves a different Codex home, which replaces the label in a fresh session.
+With no list configured, an ambient `CODEX_HOME` other than the two defaults is the only home tried
+(reported as `codex`):
 
 | Tier | PEER | Selected when |
 |---|---|---|
@@ -78,12 +86,14 @@ review is never a substitute.
 2. Peer preflight is the Step 0.0 resolution itself — `select-peer.sh <repo>` validates each
    candidate's CLI presence and auth without printing credentials (`claude auth status` reporting a
    Claude subscription; `codex login status` reporting a ChatGPT subscription; `pi auth check
-   --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile), and it
-   exits 69 only when no cross-vendor peer survives. Raw-API-key auth on a subscription side is not
-   this contract. A resolved tier-2 peer means every tier-1 peer was unreachable — disclose which,
-   and why, in the report. **A usage limit mid-run re-ladders, automatically:**
+   --provider deepseek`; `dsh` with `DEEPSEEK_API_KEY` and a composing headless profile) — it
+   exits 69 when no cross-vendor peer survives, and 64 when the Codex home list or config is
+   invalid. Raw-API-key auth on a subscription side is not this contract. A resolved tier-2 peer
+   means every tier-1 peer was unreachable — disclose which, and why, in the report. **A usage
+   limit mid-run re-ladders, automatically:**
    re-run `select-peer.sh` (its quota probe skips an exhausted subscription peer) and continue with
-   a *different* peer it resolves (if the re-run returns the same peer, fail closed —
+   a *different* peer it resolves — another Codex home counts (if the re-run returns the same peer
+   and home, fail closed —
    verdict-pending at a verdict) in a fresh session whose first round carries the committed
    state, the charter and the open findings; the one-round floor applies to the new peer, and
    the report names both peers, the switch and the tier that converged (user directive 2026-09-26:
@@ -484,7 +494,8 @@ Repeat rounds until the **Convergence contract** (Step 5) holds. Each round:
    no commit/push, run and report the gate. The PEER may challenge traceability; the HOST revises
    the temp charter, never the repo, unless the durable source itself is defective.
 3. **PEER co-edits**: run the `DRIVER` Step 0.0 resolved —
-   `~/personal/peerreview-skills/scripts/<DRIVER> <repo> <prompt> <out> <round>`. Every prompt
+   `~/personal/peerreview-skills/scripts/<DRIVER> <repo> <prompt> <out> <round>` (Codex:
+   prefixed `PEERREVIEW_CODEX_HOME=<CODEX_HOME_LABEL>`). Every prompt
    restates no-commit/push. Pass `1` for a fresh first session and `2`+ to continue it. Reference
    the script by this absolute repo path—only `SKILL.md` is symlinked into the skill directory.
    `dsh-round.sh` has no session resume, so every `dsh` round is fresh: its prompt must stay
@@ -724,8 +735,10 @@ real defect, while that starter's own UNKNOWN print lost to the statement.)
 Produce an honest report:
 
 - Per-AC status (met / met-with-caveat / not met + why).
-- **HOST/PEER and the peer tier that actually ran.** On tier 2, name every tier-1 peer that was
-  unreachable and why — an undisclosed degradation reads as a full-strength review.
+- **HOST/PEER and the peer tier that actually ran**, and for Codex the home label that ran (`codex`,
+  `codex-b`; also the `<peer>` of `chat-review-record.sh`, and in the verdict line the HOST writes).
+  On tier 2, name every tier-1 peer (each Codex home) that was unreachable and why — an
+  undisclosed degradation reads as a full-strength review.
 - Rounds actually run vs forecast, and why it converged or aborted.
 - Verification gate output.
 - Residuals (explicitly out of scope; not "perfect", and say so).

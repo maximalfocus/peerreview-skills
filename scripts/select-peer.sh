@@ -14,6 +14,7 @@
 #
 # Prints one line on success:
 #   HOST=<h> HOST_VENDOR=<v> PEER=<p> PEER_VENDOR=<v> DRIVER=<script> AUTH_SIDE=<p> TIER=<1|2>
+# and, when PEER=codex, a last field CODEX_HOME_LABEL=<label> naming the Codex home that passed.
 set -euo pipefail
 
 repo="${1:-.}"
@@ -118,6 +119,33 @@ case "$host" in
   pi|dsh) ladder="claude codex" ;;   # tier 2 would be same-vendor: not offered
 esac
 
+# The Codex peer is tried under each configured Codex home in order (codex-homes.sh), every run:
+# nothing is cached, so the first home is used again as soon as its quota resets. The first home
+# whose login and quota probe pass wins and is printed as CODEX_HOME_LABEL; the HOST passes it to
+# codex-round.sh as PEERREVIEW_CODEX_HOME. Reasons name the label, never the path.
+. "$script_dir/codex-homes.sh"
+codex_label=""
+codex_ready() {
+  local list label path reason
+  # A malformed list is a configuration error, not "every home exhausted": 2 makes the caller
+  # fail closed instead of falling through to tier 2.
+  list="$(ch_list)" || return 2
+  tried_reason=""
+  while IFS="$(printf '\t')" read -r label path; do
+    if [ ! -d "$path" ]; then
+      reason="home $label does not exist"
+    elif reason="$(CODEX_HOME="$path" "$script_dir/peer-auth.sh" codex --probe-quota 2>&1 >/dev/null)"; then
+      codex_label="$label"
+      return 0
+    else
+      reason="home $label: ${reason#peerreview: }"
+    fi
+    printf 'peerreview: Codex %s\n' "$reason" >&2
+    tried_reason="${tried_reason:+$tried_reason; }$reason"
+  done <<< "$list"
+  return 1
+}
+
 tried=""
 for cand in $ladder; do
   cand_vendor="$(vendor_of "$cand")"
@@ -125,10 +153,25 @@ for cand in $ladder; do
     tried="$tried $cand(same-vendor)"
     continue
   fi
-  if reason="$("$script_dir/peer-auth.sh" "$cand" --probe-quota 2>&1 >/dev/null)"; then
+  if [ "$cand" = codex ]; then
+    codex_rc=0
+    codex_ready || codex_rc=$?
+    if [ "$codex_rc" = 2 ]; then
+      printf 'peerreview: the Codex home list is invalid; refusing to fall back to tier 2 (reason above).\n' >&2
+      exit 64
+    fi
+    if [ "$codex_rc" = 0 ]; then ok=0; else ok=1; reason="$tried_reason"; fi
+  elif reason="$("$script_dir/peer-auth.sh" "$cand" --probe-quota 2>&1 >/dev/null)"; then
+    ok=0
+  else
+    ok=1
+  fi
+  if [ "$ok" = 0 ]; then
     [ -n "$tried" ] && printf 'peerreview: tier-1 peer unavailable (%s); using %s.\n' "${tried# }" "$cand" >&2
-    printf 'HOST=%s HOST_VENDOR=%s PEER=%s PEER_VENDOR=%s DRIVER=%s AUTH_SIDE=%s TIER=%s\n' \
-      "$host" "$host_vendor" "$cand" "$cand_vendor" "$(driver_of "$cand")" "$cand" "$(tier_of "$cand")"
+    extra=""
+    [ "$cand" = codex ] && extra=" CODEX_HOME_LABEL=$codex_label"
+    printf 'HOST=%s HOST_VENDOR=%s PEER=%s PEER_VENDOR=%s DRIVER=%s AUTH_SIDE=%s TIER=%s%s\n' \
+      "$host" "$host_vendor" "$cand" "$cand_vendor" "$(driver_of "$cand")" "$cand" "$(tier_of "$cand")" "$extra"
     exit 0
   fi
   tried="$tried $cand"
