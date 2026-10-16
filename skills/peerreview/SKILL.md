@@ -45,8 +45,8 @@ one tiny prompt whose usage-limit reply counts as unreachable — so it is also 
 Step 0 needs. The Codex peer is tried under each configured Codex home in order (`codex-homes.sh`:
 `PEERREVIEW_CODEX_HOMES`, else its config file, else `~/.codex` then `~/.codex-b`; a missing or
 signed-out home is skipped with a reason), afresh on every run — an exhausted home is never cached,
-so the first is used again once its quota resets. The winner is printed as `CODEX_HOME_LABEL=<label>`
-(never a path); pass it to every `codex-round.sh` call of the review as
+so the first is used again once its quota resets. The winner is printed as
+`CODEX_HOME_LABEL=<label>` (never a path); pass it to every `codex-round.sh` call of the review as
 `PEERREVIEW_CODEX_HOME=<label>`, and keep it for the whole review (sessions live per home):
 
 | Tier | PEER | Selected when |
@@ -733,7 +733,8 @@ Produce an honest report:
 - Per-AC status (met / met-with-caveat / not met + why).
 - **HOST/PEER and the peer tier that actually ran**, and for Codex the home label that ran (`codex`,
   `codex-b`; also the `<peer>` of `chat-review-record.sh`, and in the verdict line the HOST writes).
-  On tier 2, name every tier-1 peer (each Codex home) that was unreachable and why — an undisclosed degradation reads as a full-strength review.
+  On tier 2, name every tier-1 peer (each Codex home) that was unreachable and why — an
+  undisclosed degradation reads as a full-strength review.
 - Rounds actually run vs forecast, and why it converged or aborted.
 - Verification gate output.
 - Residuals (explicitly out of scope; not "perfect", and say so).
