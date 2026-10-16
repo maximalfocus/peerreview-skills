@@ -28,6 +28,15 @@
 set -euo pipefail
 
 refuse() { printf 'chat-review-record: refused, no record written: %s\n' "$1" >&2; exit 65; }
+# One integer field of stat: GNU `-c` first (BSD stat rejects -c and prints nothing), then BSD
+# `-f`. GNU `stat -f` means file-system status, so BSD-first output is not a number on Linux.
+# Anything but digits fails, and the caller refuses.
+stat_field() {  # GNU format, BSD format, path
+  local v
+  v=$(stat -c "$1" -- "$3" 2>/dev/null) || v=$(stat -f "$2" -- "$3" 2>/dev/null) || return 1
+  [[ $v =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$v"
+}
 [ "$#" -eq 4 ] || [ "$#" -eq 5 ] || {
   sed -n '/^# Usage: /s/^# //p' "$0" >&2
   exit 64
@@ -66,7 +75,7 @@ committed "$file" || refuse "the file is not a committed regular file at an acce
 
 [[ -f $verdict && ! -L $verdict ]] || refuse "the verdict output is not a regular file"
 commit_time=$(git -C "$resolved" log -1 --format=%ct HEAD)
-verdict_time=$(stat -f %m "$verdict" 2>/dev/null || stat -c %Y "$verdict")
+verdict_time=$(stat_field %Y %m "$verdict") || refuse "the verdict output's time could not be read"
 [ "$verdict_time" -ge "$commit_time" ] ||
   refuse "the verdict output is older than the reviewed commit"
 # A verdict line starts with its exact verdict token (optionally Markdown-wrapped).
@@ -100,7 +109,7 @@ for part in .local state peerreview chat-converged; do
   [[ ! -L $parent ]] || refuse "a record folder path component is a symlink"
 done
 [[ -d $dir ]] || refuse "the record folder is not a directory"
-owner=$(stat -f %u "$dir" 2>/dev/null || stat -c %u "$dir")
+owner=$(stat_field %u %u "$dir") || refuse "the record folder's owner could not be read"
 [[ $owner == "$(id -u)" ]] || refuse "the record folder is not owned by this user"
 chmod 700 "$dir"
 out=$dir/$sha-$(date -u +%Y%m%dT%H%M%SZ)-$$.json
