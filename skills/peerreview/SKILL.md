@@ -689,6 +689,13 @@ must have run and been independently re-verified):
     gate-count miscount above): re-dispatch once with the permission restated, never treat it as a
     residual, never edit the artifact to satisfy it. It recurs when the line is shortened
     (CC-Sandbox 2026-08-09; vvah-memo 2026-09-08 verdicts 8 and 10, cleared by the same preamble).
+  - **What the verdict sandbox cannot reach goes into the first verdict prompt, verbatim.** It has
+    no network and no writable temp directory, so a PR body or a `tempfile`-using suite is out of
+    its reach and it answers NOT CONVERGED naming no defect. Quote the HOST's gate output and the
+    PR body, and say that a result it cannot re-run is named as unverified and is a reason for NOT
+    CONVERGED only with a concrete reason from the repository to think it false (bsdc-tools
+    #138/#139 2026-10-11: three no-defect verdicts without it; five with it converged naming the
+    gate unverified, or named a real defect).
 
 Anything not fixable without changing host state / running real infrastructure / external review is
 **not** a blocker — it is recorded as a residual, not papered over.
