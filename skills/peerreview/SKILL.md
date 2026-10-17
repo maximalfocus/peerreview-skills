@@ -157,6 +157,17 @@ injection (`python -P`), warn the PEER of the same trap. (vvah-v1.3.0 2026-09-07
 git there drove every reversal; a gate run beside a same-named package imported the reviewer's
 already-fixed fork, reporting the defect absent.)
 
+**Two verdict rounds, then the caller finalises** (one-brim-autotest 2026-10-15, user-approved):
+a `--chat` review is the exception to Step 5's continue-until-CONVERGED rule: it runs at most two
+verdict rounds. If the second returns NOT CONVERGED, stop: return the last text with both verdicts
+to the caller, which finalises (this skill gives no authority to send), and write no record. Before
+calling the record script, the HOST puts the number of PEER turns (review rounds plus verdict) in
+the committed meta object as `turns`.
+
+**Outside the skill:** a line of only status + link + a question to a named person, made by
+the caller's closed template (every claim a record field, no free text) and checked by the
+caller's script, is not reviewed here; a line with a new fact, number or promise is.
+
 **Record for a tool that acts on the reviewed file** (user decision, one-brim-autotest 2026-10-11:
 a reviewed chat reply is sent without a per-send confirmation). Only when the instruction says a
 tool will act on the result: commit that file (the exact bytes, e.g. `REPLY.txt`) and any small
