@@ -761,7 +761,13 @@ On convergence, land a branch-mode review with `scripts/delivery-branch.sh land 
 the base branch (title = subject, body = message body), prints the PR URL, and never writes the base
 branch — then create/push the anchor tag. Only `bash ~/personal/idd-skills/scripts/land-evolution.sh
 <PR>` on the maintainer's explicit instruction merges it, never this run. The review branch is kept
-locally; its round commits remain the detailed record.
+locally; its round commits remain the detailed record. For repos landing via that script, add this
+to every round's Step 2 gate: `bash ~/personal/idd-skills/scripts/line-width.sh check
+origin/<default> HEAD` (replace `<default>` with the PR target); it checks added lines in the PR
+range across tracked text files, with binary, Markdown-table, and `Formatter-owned:` exemptions.
+This repo's `scripts/width.sh` defaults to skill files, `CONSTITUTION.md`, and `CLAUDE.md`; that
+default misses arbitrary changed files. (PR #35: all 20 overlong additions—2 script, 18 test—came in
+review rounds; landing refused at `44c5cdd`, rewrapped at `6240f1f`.)
 
 Then **always commit and push the reviewed repo** — every run, on convergence *or* non-progress
 abort, without asking. Push the working branch to its tracking remote and state the branch/remote in
